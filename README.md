@@ -44,3 +44,12 @@ hospital-stay-length/
 ├── requirements.txt
 └── README.md
 ```
+
+## Notes
+
+Final project should have following steps:
+1. Data aquisition and loading
+2. Loading prepared models with initial hiperparameters
+3. Choosing model with the best performance (quality metrics are to be chosen)
+4. Fune-tuning of a chosen model using grid-search (hyperparameters defined in file)
+5. Model evaluation, calculating metrics
