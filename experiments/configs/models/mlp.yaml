@@ -1,0 +1,6 @@
+model:
+  name: 'mlp'
+  hidden_channels: None
+  activation_layer: None
+  dropout: None
+
