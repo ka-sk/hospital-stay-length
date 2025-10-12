@@ -1,0 +1,5 @@
+model:
+  name: 'mlp'
+  hidden_channels: [64, 128, 256]
+  activation_layer: ['relu', 'tanh']
+  dropout: [0.2, 0.3, 0.4]
