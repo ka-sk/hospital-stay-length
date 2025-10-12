@@ -1,5 +1,5 @@
 model:
   name: 'lstm'
-  hidden_size: None
-  num_layers: None
-  dropout: None
+  hidden_size: 128
+  num_layers: 3
+  dropout: 0.3

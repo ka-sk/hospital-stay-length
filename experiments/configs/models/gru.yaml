@@ -1,5 +1,5 @@
 model:
   name: 'gru'
-  hidden_size: None
-  num_layers: None
-  dropout: None
+  hidden_size: 64
+  num_layers: 2
+  dropout: 0.2
