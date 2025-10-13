@@ -1,1 +1,4 @@
-kagglehub>=0.2.0
+kagglehub==0.3.13
+omegaconf==2.3.0
+pandas==2.3.3
+torch==2.8.0
