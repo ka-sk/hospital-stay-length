@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 
 
-def load_data():
+def load_data()-> pd.DataFrame:
     
     # Download data
     path = Path(kagglehub.dataset_download("abdallaahmed77/healthcare-risk-factors-dataset"))
@@ -14,7 +14,7 @@ def load_data():
     return dataframe
 
 
-def data_filtration(dataframe: pd.DataFrame):
+def data_filtration(dataframe: pd.DataFrame) -> pd.DataFrame:
     # filter out unnecessary colums 
     dataframe = dataframe.drop(['random_notes', 'noise_col'], axis=1)
 
@@ -28,8 +28,25 @@ def data_filtration(dataframe: pd.DataFrame):
 
     print(f"Rows with lacking data: {len1-len2}")
 
+    # "Male" "Female" into 1 and 0
+    mapping_dict = {'Male': 1, 'Female': 0}
+    dataframe['Gender'] = dataframe['Gender'].map(mapping_dict)
+
+    # Get all unique conditions except 'Healthy'
+    conditions = dataframe['Medical Condition'].unique()
+    conditions = [cond for cond in conditions if cond != 'Healthy']
+
+    # Create a column for each condition
+    for cond in conditions:
+        dataframe[cond] = (dataframe['Medical Condition'] == cond).astype(int)
+
+    # Optionally, drop the original column
+    dataframe = dataframe.drop('Medical Condition', axis=1)
+
+    # Should there be data normalisation? 
+
     return dataframe
 
 
 if __name__ == "__main__":
-    data_filtration(load_data())
+    print(data_filtration(load_data()))

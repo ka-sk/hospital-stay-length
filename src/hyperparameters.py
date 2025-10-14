@@ -1,7 +1,6 @@
 # #dokładne dane w plikach yml w folderze experiments/configs
 #tutaj tylko wczytywanie funkcji strat, optymalizacji, learning rate itp
 from omegaconf import OmegaConf
-from itertools import product
 from pathlib import Path
 from typing import Literal
 
