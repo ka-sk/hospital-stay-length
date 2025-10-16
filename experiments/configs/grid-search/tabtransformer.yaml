@@ -1,5 +1,5 @@
 model:
-  name: 'gru'
+  name: 'tabtransformer'
   hidden_size: [64, 128, 256]
   num_layers: [1, 2, 3]
   dropout: [0.2, 0.3, 0.4]

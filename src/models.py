@@ -1,3 +1,8 @@
+# lstm i gru nie są dobrym wyborem
+# mlp
+# tab transformer
+# tab net
+
 #dokładne dane w plikach yml w folderze experiments/configs
 #tutaj tylko wczytywanie modeli i zwracanie instancji z torch
 
@@ -10,7 +15,25 @@ from pathlib import Path
 def load_model_instances(path: str):
     config = OmegaConf.load(path)
     models = []
-    if config.model.name == "gru":
+
+    if config.model.name == "tabtransformer":
+
+        # Simple tab transformer
+        class SimpleTabTransformer(nn.Module):
+            def __init__(self, num_features, d_model=64, n_heads=4, num_layers=2):
+                super().__init__()
+                self.embedding = nn.Linear(num_features, d_model)
+                encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads)
+                self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+                self.fc_out = nn.Linear(d_model, 1)
+
+            def forward(self, x):
+                # Add sequence dimension (required by transformer)
+                x = self.embedding(x).unsqueeze(1)
+                x = self.transformer(x)
+                x = x.mean(dim=1)  # pool across sequence dimension
+                return self.fc_out(x)
+
 
         # Extract grid search parameters
         hidden_sizes = config.model.hidden_size
@@ -19,15 +42,10 @@ def load_model_instances(path: str):
 
         # Generate all combinations
         for hs, nl, do in product(hidden_sizes, num_layers, dropouts):
-            model = nn.GRU(
-                input_size=1,  # Adjust as needed
-                hidden_size=hs,
-                num_layers=nl,
-                dropout=do if nl > 1 else 0,  # PyTorch GRU only applies dropout if num_layers > 1
-                batch_first=True
-            )
+            model = SimpleTabTransformer()
             models.append(model)
-    elif config.model.name == "lstm":
+
+    elif config.model.name == "tabnet":
         hidden_sizes = config.model.hidden_size
         num_layers = config.model.num_layers 
         dropouts = config.model.dropout

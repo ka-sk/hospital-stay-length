@@ -1,5 +1,0 @@
-model:
-  name: 'mlp'
-  hidden_channels: 256
-  activation_layer: 'relu'
-  dropout: 0.25
