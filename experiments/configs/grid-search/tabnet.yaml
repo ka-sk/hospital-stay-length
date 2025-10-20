@@ -1,6 +1,6 @@
 model:
   name: 'tabnet'
-  in_features: 18
+  in_features: 22
   n_d: [8, 32, 64]
   n_a: [8, 32, 64]
   n_steps: [3, 5, 7]

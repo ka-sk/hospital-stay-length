@@ -1,11 +1,3 @@
-# lstm i gru nie są dobrym wyborem
-# mlp
-# tab transformer
-# tab net
-
-#dokładne dane w plikach yml w folderze experiments/configs
-#tutaj tylko wczytywanie modeli i zwracanie instancji z torch
-
 from omegaconf import OmegaConf
 from itertools import product
 import torch.nn as nn
@@ -85,7 +77,8 @@ def load_model_instances(path: str):
 def get_all_models(path=''):
     if path == '':
         path = Path('experiments/configs/grid-search/')
-        all_models_list = []
+
+    all_models_list = []
     for filepath in path.iterdir():
         all_models_list += load_model_instances(filepath)
     return all_models_list

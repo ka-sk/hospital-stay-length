@@ -1,6 +1,7 @@
 import kagglehub
 import pandas as pd
 from pathlib import Path
+import torch
 
 
 def load_data()-> pd.DataFrame:
@@ -44,8 +45,11 @@ def data_filtration(dataframe: pd.DataFrame) -> pd.DataFrame:
     dataframe = dataframe.drop('Medical Condition', axis=1)
 
     # Should there be data normalisation? 
+    y = torch.from_numpy(dataframe['LengthOfStay'].values).to(dtype=torch.float32)
+    y = y.unsqueeze(dim=1)
+    X = torch.from_numpy(dataframe.drop('LengthOfStay', axis=1).values).to(dtype=torch.float32)
 
-    return dataframe
+    return X, y
 
 
 if __name__ == "__main__":

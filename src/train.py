@@ -5,36 +5,41 @@
 
 #grid-search function 
 import torch
+import data_loader as data
+import models
+import pytorch_tabnet
 
 def step(X_train: torch.Tensor, y_train: torch.Tensor, model: torch.nn.Module, loss_funct: torch.nn, optim: torch.optim.Optimizer):
-    # , X_test: torch.Tensor, y_test: torch.Tensor
-    model.train()
+    if model == pytorch_tabnet.tab_model.TabNetRegressor:
+        print('here')
+        #model.fit()
+    else:
+        model.train()
 
-    optim.zero_grad()
+        optim.zero_grad()
 
-    y_pred = model(X_train)
-    loss = loss_funct(y_pred, y_train)
-    
-    loss.backward()
+        y_pred = model(X_train)
+        loss = loss_funct(y_pred, y_train)
 
-    optim.step()
+        loss.backward()
 
-    model.eval()
+        optim.step()
 
-    with model.mode.inference_mode():
-        pass
+        model.eval()
+
+        with torch.inference_mode():
+            pass
 
 
 
 if __name__ == '__main__':
-    import data_loader as data
     df = data.load_data()
-    df = data.data_filtration(df)
-    y = torch.from_numpy(df['LengthOfStay'].values).to(dtype=torch.float32)
-    y = y.unsqueeze(dim=1)
+    X, y = data.data_filtration(df)
+    model_list = models.get_all_models()
+    model = model_list[10]
 
-    X = torch.from_numpy(df.drop('LengthOfStay', axis=1).values).to(dtype=torch.float32)
-    model = torch.nn.GRU(X.shape[1], 1)
+    [print(type(i)) for i in model_list]
+
     loss_funct = torch.nn.L1Loss()
     optim = torch.optim.Adam(model.parameters())
-    step(X, y, model, loss_funct, optim)
+    [step(X, y, model, loss_funct, optim) for model in model_list]

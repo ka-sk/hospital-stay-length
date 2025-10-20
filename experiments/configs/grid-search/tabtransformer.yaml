@@ -1,6 +1,6 @@
 model:
   name: "tabtransformer"
-  in_features: 18
+  in_features: 22
   d_model: [64, 128, 256]
   n_heads: [2, 4, 8]
   num_layers: [1, 2, 3]
