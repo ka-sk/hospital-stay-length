@@ -10,11 +10,14 @@ from omegaconf import OmegaConf
 from itertools import product
 import torch.nn as nn
 from pathlib import Path
+from pytorch_tabnet.tab_model import TabNetRegressor
 
 
 def load_model_instances(path: str):
     config = OmegaConf.load(path)
     models = []
+
+    in_features = config.model.in_features
 
     if config.model.name == "tabtransformer":
 
@@ -36,28 +39,22 @@ def load_model_instances(path: str):
 
 
         # Extract grid search parameters
-        hidden_sizes = config.model.hidden_size
+        d_model = config.model.d_model
         num_layers = config.model.num_layers
-        dropouts = config.model.dropout
+        n_heads = config.model.n_heads
 
         # Generate all combinations
-        for hs, nl, do in product(hidden_sizes, num_layers, dropouts):
-            model = SimpleTabTransformer()
+        for dm, nh, nl in product(d_model, n_heads, num_layers):
+            model = SimpleTabTransformer(num_features=in_features, d_model=dm, n_heads=nh, num_layers=nl)
             models.append(model)
 
     elif config.model.name == "tabnet":
-        hidden_sizes = config.model.hidden_size
-        num_layers = config.model.num_layers 
-        dropouts = config.model.dropout
+        n_d = config.model.n_d
+        n_a = config.model.n_a 
+        n_steps = config.model.n_steps
 
-        for hs, nl, do in product(hidden_sizes, num_layers, dropouts):
-            model = nn.LSTM(
-                input_size=1,  # Adjust as needed
-                hidden_size=hs,
-                num_layers=nl,
-                dropout=do if nl > 1 else 0,
-                batch_first=True
-            )
+        for nd, na, ns in product(n_d, n_a, n_steps):
+            model = TabNetRegressor(n_d=nd, n_a=na, n_steps=ns)
             models.append(model)
 
     elif config.model.name == "mlp":
@@ -72,7 +69,7 @@ def load_model_instances(path: str):
 
         for hc, act, do in product(hidden_channels, activation_layers, dropouts):
             layers = [
-                nn.Linear(1, hc),  # Adjust input size as needed
+                nn.Linear(in_features=in_features, out_features=hc),  # Adjust input size as needed
                 activation_map[act](),
                 nn.Dropout(do),
                 nn.Linear(hc, 1)   # Adjust output size as needed

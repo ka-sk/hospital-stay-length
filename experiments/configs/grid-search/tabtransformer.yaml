@@ -1,5 +1,6 @@
 model:
-  name: 'tabtransformer'
-  hidden_size: [64, 128, 256]
+  name: "tabtransformer"
+  in_features: 18
+  d_model: [64, 128, 256]
+  n_heads: [2, 4, 8]
   num_layers: [1, 2, 3]
-  dropout: [0.2, 0.3, 0.4]
