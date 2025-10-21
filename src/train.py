@@ -32,6 +32,8 @@ def step(X_train: torch.Tensor, y_train: torch.Tensor, model: torch.nn.Module, l
 
 
 
+
+
 if __name__ == '__main__':
     df = data.load_data()
     X, y = data.data_filtration(df)

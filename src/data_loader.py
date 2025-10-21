@@ -2,10 +2,11 @@ import kagglehub
 import pandas as pd
 from pathlib import Path
 import torch
+from torch import cuda
 
 
 def load_data()-> pd.DataFrame:
-    
+
     # Download data
     path = Path(kagglehub.dataset_download("abdallaahmed77/healthcare-risk-factors-dataset"))
     
@@ -16,6 +17,8 @@ def load_data()-> pd.DataFrame:
 
 
 def data_filtration(dataframe: pd.DataFrame) -> pd.DataFrame:
+    device = 'cuda' if cuda.is_available() else 'gpu' 
+
     # filter out unnecessary colums 
     dataframe = dataframe.drop(['random_notes', 'noise_col'], axis=1)
 
@@ -49,7 +52,7 @@ def data_filtration(dataframe: pd.DataFrame) -> pd.DataFrame:
     y = y.unsqueeze(dim=1)
     X = torch.from_numpy(dataframe.drop('LengthOfStay', axis=1).values).to(dtype=torch.float32)
 
-    return X, y
+    return X.to(device=device), y.to(device=device)
 
 
 if __name__ == "__main__":

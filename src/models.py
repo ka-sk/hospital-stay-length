@@ -3,11 +3,13 @@ from itertools import product
 import torch.nn as nn
 from pathlib import Path
 from pytorch_tabnet.tab_model import TabNetRegressor
+from torch import cuda
 
 
 def load_model_instances(path: str):
     config = OmegaConf.load(path)
     models = []
+    device = 'cuda' if cuda.is_available() else 'gpu' 
 
     in_features = config.model.in_features
 
@@ -38,7 +40,7 @@ def load_model_instances(path: str):
         # Generate all combinations
         for dm, nh, nl in product(d_model, n_heads, num_layers):
             model = SimpleTabTransformer(num_features=in_features, d_model=dm, n_heads=nh, num_layers=nl)
-            models.append(model)
+            models.append(model.to(device=device))
 
     elif config.model.name == "tabnet":
         n_d = config.model.n_d
@@ -67,7 +69,7 @@ def load_model_instances(path: str):
                 nn.Linear(hc, 1)   # Adjust output size as needed
             ]
             model = nn.Sequential(*layers)
-            models.append(model)
+            models.append(model.to(device=device))
 
     else:
         raise ValueError(f"Unknown model name: {config.model.name} in {path}")
