@@ -30,7 +30,6 @@ def load_loss_function(path=''):
 
 
 def load_optim(path='', model: torch.nn.Module=None):
-    device = 'cuda' if cuda.is_available() else 'gpu' 
 
     if path == '':
             path = Path('experiments/configs/optimizers')
