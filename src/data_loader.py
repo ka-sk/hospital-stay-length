@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 import torch
 from torch import cuda
+from torch.utils.data import TensorDataset
 
 
 def load_data()-> pd.DataFrame:
@@ -48,11 +49,11 @@ def data_filtration(dataframe: pd.DataFrame) -> pd.DataFrame:
     dataframe = dataframe.drop('Medical Condition', axis=1)
 
     # Should there be data normalisation? 
-    y = torch.from_numpy(dataframe['LengthOfStay'].values).to(dtype=torch.float32)
+    y = torch.from_numpy(dataframe['LengthOfStay'].values).to(dtype=torch.float32, device=device)
     y = y.unsqueeze(dim=1)
-    X = torch.from_numpy(dataframe.drop('LengthOfStay', axis=1).values).to(dtype=torch.float32)
+    X = torch.from_numpy(dataframe.drop('LengthOfStay', axis=1).values).to(dtype=torch.float32, device=device)
 
-    return X.to(device=device), y.to(device=device)
+    return TensorDataset(X, y)
 
 
 if __name__ == "__main__":
