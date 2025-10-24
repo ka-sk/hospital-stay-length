@@ -95,17 +95,19 @@ def cross_val(dataset: TensorDataset,
         train_loader = DataLoader(train_subset, batch_size=64, shuffle=True)
         test_loader = DataLoader(val_subset, batch_size=64, shuffle=False)
 
-        train(train_dataloader=train_loader,
-              test_dataloader=test_loader,
-              model=model,
-              loss_funct=loss_funct,
-              optim=optim,
-              num_epochs=num_epochs,
-              )
+        model, train_loss, test_loss = train(train_dataloader=train_loader,
+                                            test_dataloader=test_loader,
+                                            model=model,
+                                            loss_funct=loss_funct,
+                                            optim=optim,
+                                            num_epochs=num_epochs,
+                                            )
+        # TODO: model saving
+        # TODO: plot saving
+        return model, train_loss, test_loss
 
 
-def grid_search(train_dataloader: DataLoader,
-                test_dataloader: DataLoader,
+def grid_search(dataset: TensorDataset,
                 model_list: Iterable | torch.nn.Module, 
                 optim_list: Iterable | torch.optim.Optimizer, 
                 loss_funct_list: Iterable | Callable,
@@ -115,14 +117,13 @@ def grid_search(train_dataloader: DataLoader,
         model_list = [model_list]
     
     if not isinstance(optim_list, Iterable):
-        model_list = [optim_list]
+        optim_list = [optim_list]
 
     if not isinstance(loss_funct_list, Iterable):
-        model_list = [loss_funct_list]
+        loss_funct_list = [loss_funct_list]
 
     for model, optim, loss_f in product(model_list, optim_list, loss_funct_list):
-        # cross val        
-        pass
+        cross_val(dataset, model, loss_f, optim, num_epochs=num_epochs)
 
 
 if __name__ == '__main__':
