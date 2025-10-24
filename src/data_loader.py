@@ -18,7 +18,7 @@ def load_data()-> pd.DataFrame:
 
 
 def data_filtration(dataframe: pd.DataFrame) -> pd.DataFrame:
-    device = 'cuda' if cuda.is_available() else 'gpu' 
+    device = 'cuda' if cuda.is_available() else 'cpu' 
 
     # filter out unnecessary colums 
     dataframe = dataframe.drop(['random_notes', 'noise_col'], axis=1)

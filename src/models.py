@@ -9,7 +9,7 @@ from torch import cuda
 def load_model_instances(path: str):
     config = OmegaConf.load(path)
     models = []
-    device = 'cuda' if cuda.is_available() else 'gpu' 
+    device = 'cuda' if cuda.is_available() else 'cpu' 
 
     in_features = config.model.in_features
 

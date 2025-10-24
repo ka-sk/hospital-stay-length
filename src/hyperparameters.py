@@ -6,7 +6,7 @@ from torch import cuda
 import torch
 
 def load_loss_function(path=''):
-    device = 'cuda' if cuda.is_available() else 'gpu' 
+    device = 'cuda' if cuda.is_available() else 'cpu' 
 
     if path == '':
             path = Path('experiments/configs/loss-functions')
