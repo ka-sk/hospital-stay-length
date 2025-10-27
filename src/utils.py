@@ -6,7 +6,7 @@ def filepath(model: torch.nn.Module, cv_num: int):
     pass
 
 
-def file_name():
+def filename(**kwargs):
     pass
 
 
