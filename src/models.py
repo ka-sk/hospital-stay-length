@@ -4,15 +4,27 @@ import torch.nn as nn
 from pathlib import Path
 from pytorch_tabnet.tab_model import TabNetRegressor
 from torch import cuda
+import torch
 import utils
 
 
-def filename_filepath(model):
-    class NewModel:
+def filename_filepath(model: nn.Module):
+    class NewModel(model):
         def __init__(self, *args, **kwargs):
-            self.wrap = model(*args, **kwargs)
-            self.filepath = utils.filepath(**kwargs)
-            self.model_name = self.wrap.__class__.__name__
+            super().__init__(*args, **kwargs)
+
+            self.model_name = model.__name__
+
+            self.is_trained = False
+            self.is_saved = False
+            # Path to model file
+            self.file_path = None # TODO: filepath function
+            # Saving data about the trained model to file that groups everything
+        def save(self):
+            torch.save(model.state_dict(), self.file_path) # TODO filepath and filename
+            # Variable that is true if model is trained and file is saved 
+            # Save method that checks these variables 
+            pass
     return NewModel
 
 
@@ -35,6 +47,7 @@ class SimpleTabTransformer(nn.Module):
 
 
 # Simple MLP
+@filename_filepath
 class SimpleMLP(nn.Module):
     def __init__(self, in_features=22, hidden_features=8, activation_layer='relu', dropout=0.2):
         super().__init__()
@@ -109,5 +122,6 @@ def get_all_models(path=''):
 
 
 if __name__ == "__main__":
-    model = SimpleTabTransformer(1)
+    model = filename_filepath(TabNetRegressor)
+    model = model()
     pass
