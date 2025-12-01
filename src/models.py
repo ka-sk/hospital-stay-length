@@ -5,36 +5,19 @@ from pathlib import Path
 from pytorch_tabnet.tab_model import TabNetRegressor
 from torch import cuda
 import torch
-import utils
-
-
-def filename_filepath(model: nn.Module):
-    class NewModel(model):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-
-            self.model_name = model.__name__
-
-            self.is_trained = False
-            self.is_saved = False
-            # Path to model file
-            self.file_path = None # TODO: filepath function
-            # Saving data about the trained model to file that groups everything
-        def save(self):
-            torch.save(model.state_dict(), self.file_path) # TODO filepath and filename
-            # Variable that is true if model is trained and file is saved 
-            # Save method that checks these variables 
-            pass
-    return NewModel
 
 
 # Simple tab transformer
-@filename_filepath
 class SimpleTabTransformer(nn.Module):
     def __init__(self, in_features, d_model=64, n_heads=4, num_layers=2):
         super().__init__()
+        self.in_features = in_features
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.num_layers = num_layers
+        
         self.embedding = nn.Linear(in_features, d_model)
-        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, batch_first=True)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         self.fc_out = nn.Linear(d_model, 1)
 
@@ -44,13 +27,24 @@ class SimpleTabTransformer(nn.Module):
         x = self.transformer(x)
         x = x.mean(dim=1)  # pool across sequence dimension
         return self.fc_out(x)
+    
+    def get_hyperparams(self) -> dict:
+        return {
+            "in_features": self.in_features,
+            "d_model": self.d_model,
+            "n_heads": self.n_heads,
+            "num_layers": self.num_layers
+        }
 
 
 # Simple MLP
-@filename_filepath
 class SimpleMLP(nn.Module):
     def __init__(self, in_features=22, hidden_features=8, activation_layer='relu', dropout=0.2):
         super().__init__()
+        self.in_features = in_features
+        self.hidden_features = hidden_features
+        self.activation_name = activation_layer
+        self.dropout_rate = dropout
 
         activation_map = {
             'relu': nn.ReLU,
@@ -67,6 +61,14 @@ class SimpleMLP(nn.Module):
         x = self.dropout(x)
         x = self.linear2(x)
         return x
+    
+    def get_hyperparams(self) -> dict:
+        return {
+            "in_features": self.in_features,
+            "hidden_features": self.hidden_features,
+            "activation": self.activation_name,
+            "dropout": self.dropout_rate
+        }
 
 
 def load_model_instances(path: str):
@@ -122,6 +124,10 @@ def get_all_models(path=''):
 
 
 if __name__ == "__main__":
-    model = filename_filepath(TabNetRegressor)
-    model = model()
-    pass
+    # Test loading all models
+    all_models = get_all_models()
+    print(f"Total models loaded: {len(all_models)}")
+    for i, model in enumerate(all_models[:5]):
+        print(f"  {i+1}. {model.__class__.__name__}")
+        if hasattr(model, 'get_hyperparams'):
+            print(f"      Hyperparams: {model.get_hyperparams()}")
