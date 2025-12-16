@@ -245,6 +245,42 @@ def get_model_hyperparams(model: torch.nn.Module) -> dict:
     return params
 
 
+def train_tabnet(X_train: np.ndarray,
+                 y_train: np.ndarray,
+                 X_val: np.ndarray,
+                 y_val: np.ndarray,
+                 model: TabNetRegressor,
+                 num_epochs: int = 100,
+                 early_stopping_patience: int = 10) -> tuple:
+    """
+    Train TabNet model using its native .fit() method.
+    Returns: model, train_loss_array, val_loss_array, actual_epochs, stopped_early
+    """
+    # TabNet uses its own training method
+    model.fit(
+        X_train=X_train,
+        y_train=y_train.reshape(-1, 1),
+        eval_set=[(X_val, y_val.reshape(-1, 1))],
+        eval_metric=['mae'],
+        max_epochs=num_epochs,
+        patience=early_stopping_patience,
+        batch_size=64,
+        virtual_batch_size=32,
+        num_workers=0,
+        drop_last=False
+    )
+    
+    # Extract training history
+    history = model.history
+    train_loss = np.array([h['loss'] for h in history])
+    val_loss = np.array([h['val_0_mae'] for h in history])  # Using MAE as validation metric
+    
+    actual_epochs = len(train_loss)
+    stopped_early = actual_epochs < num_epochs
+    
+    return model, train_loss, val_loss, actual_epochs, stopped_early
+
+
 def train(train_dataloader: DataLoader,
           test_dataloader: DataLoader,
           model: torch.nn.Module,
@@ -313,6 +349,118 @@ def save_model(model: torch.nn.Module, save_path: Path):
     save_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), save_path)
     print(f"Model saved: {save_path}")
+
+
+def cross_val_tabnet(X_data: np.ndarray,
+                     y_data: np.ndarray,
+                     model: TabNetRegressor,
+                     k_fold: int = 5,
+                     num_epochs: int = 100,
+                     model_save_dir: Path = None,
+                     grid_search_id: int = 0,
+                     early_stopping_patience: int = 10,
+                     live_preview: LivePreview = None) -> list[dict]:
+    """
+    K-Fold cross validation for TabNet models.
+    Returns list of dicts with results for each fold.
+    """
+    cv = KFold(n_splits=k_fold, shuffle=True, random_state=42)
+    fold_results = []
+    
+    model_name = model.__class__.__name__
+    hyperparams = {
+        "model_name": model_name,
+        "n_d": model.n_d,
+        "n_a": model.n_a,
+        "n_steps": model.n_steps
+    }
+    
+    for fold_idx, (train_idx, val_idx) in enumerate(cv.split(X_data)):
+        # TabNet needs fresh instance for each fold
+        fold_model = TabNetRegressor(
+            n_d=model.n_d,
+            n_a=model.n_a,
+            n_steps=model.n_steps,
+            seed=42
+        )
+        
+        # Split data
+        X_train, X_val = X_data[train_idx], X_data[val_idx]
+        y_train, y_val = y_data[train_idx], y_data[val_idx]
+        
+        # Train TabNet
+        fold_model, train_loss_arr, val_loss_arr, actual_epochs, stopped_early = train_tabnet(
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            model=fold_model,
+            num_epochs=num_epochs,
+            early_stopping_patience=early_stopping_patience
+        )
+        
+        # Final losses
+        final_train_loss = train_loss_arr[-1]
+        final_val_loss = val_loss_arr[-1]
+        best_val_loss = np.min(val_loss_arr)
+        best_epoch = int(np.argmin(val_loss_arr)) + 1
+        
+        # Compute metrics
+        y_pred = fold_model.predict(X_val)
+        metrics = compute_regression_metrics(
+            y_true=y_val,
+            y_pred=y_pred.flatten()
+        )
+        
+        # Save model (TabNet uses .zip format)
+        if model_save_dir is not None:
+            model_filename = f"gs{grid_search_id:04d}_fold{fold_idx + 1}"
+            model_path = model_save_dir / model_filename
+            model_save_dir.mkdir(parents=True, exist_ok=True)
+            fold_model.save_model(str(model_path))
+        else:
+            model_path = None
+        
+        # Live preview
+        if live_preview is not None:
+            live_preview.update(
+                fold_idx=fold_idx + 1,
+                grid_search_id=grid_search_id,
+                model_name=model_name,
+                train_loss=final_train_loss,
+                val_loss=final_val_loss,
+                metrics=metrics,
+                stopped_early=stopped_early,
+                best_epoch=best_epoch,
+                total_epochs=num_epochs
+            )
+        
+        # Record results
+        result = {
+            "grid_search_id": grid_search_id,
+            "fold": fold_idx + 1,
+            "final_train_loss": final_train_loss,
+            "final_val_loss": final_val_loss,
+            "best_val_loss": best_val_loss,
+            "best_epoch": best_epoch,
+            "actual_epochs": actual_epochs,
+            "num_epochs": num_epochs,
+            "stopped_early": stopped_early,
+            "optimizer": "Adam",  # TabNet uses Adam internally
+            "learning_rate": 0.02,  # TabNet default
+            "loss_function": "MAE",  # TabNet uses MAE for validation
+            "model_path": str(model_path) if model_path else None,
+            # Metrics
+            "mae": metrics["mae"],
+            "mse": metrics["mse"],
+            "rmse": metrics["rmse"],
+            "r2": metrics["r2"],
+            "mape": metrics["mape"],
+            **hyperparams
+        }
+        fold_results.append(result)
+    
+    return fold_results
 
 
 def cross_val(dataset: TensorDataset,
@@ -493,9 +641,30 @@ def grid_search(dataset: TensorDataset,
     print(f"{Colors.bold('═' * 60)}\n")
     
     for model in model_list:
-        # Skip TabNet for now (requires different training)
+        # TabNet requires special handling (different API)
         if isinstance(model, TabNetRegressor):
-            print(Colors.warning(f"Skipping TabNet (requires special handling)"))
+            grid_search_id += 1
+            model_name = model.__class__.__name__
+            
+            print(f"\n{Colors.info(f'[{grid_search_id}/{total_combinations}]')} {Colors.bold(model_name)} | TabNet Native Training")
+            
+            # Extract numpy arrays from dataset
+            X_data = dataset.tensors[0].cpu().numpy()
+            y_data = dataset.tensors[1].cpu().numpy()
+            
+            # Run TabNet-specific cross validation
+            fold_results = cross_val_tabnet(
+                X_data=X_data,
+                y_data=y_data,
+                model=model,
+                k_fold=k_fold,
+                num_epochs=num_epochs,
+                model_save_dir=experiment_model_dir,
+                grid_search_id=grid_search_id,
+                early_stopping_patience=early_stopping_patience,
+                live_preview=live_preview
+            )
+            all_results.extend(fold_results)
             continue
 
         for optim_class, loss_funct, lr in product(optim_class_list, loss_funct_list, lr_list):
@@ -628,6 +797,82 @@ def copy_best_model(best_models_df: pd.DataFrame, experiment_name: str):
         print(f"{Colors.info(f'Best model metadata: {meta_path}')}")
 
 
+# ============== NEW API FOR CONFIG-BASED GRID SEARCH ==============
+
+def grid_search(config,
+                X_train,
+                y_train, 
+                X_test=None,
+                y_test=None,
+                k_folds: int = 5,
+                early_stopping_patience: int = 10) -> str:
+    """
+    Grid search using config file (new API for main.py).
+    
+    Args:
+        config: OmegaConf configuration with model hyperparameters
+        X_train: Training features (tensor or numpy)
+        y_train: Training labels (tensor or numpy)
+        X_test: Optional test features
+        y_test: Optional test labels
+        k_folds: Number of folds for cross-validation
+        early_stopping_patience: Patience for early stopping
+    
+    Returns:
+        experiment_name: Name of the experiment
+    """
+    import utils
+    device = utils.get_device()
+    
+    # Convert to tensors if needed
+    if not isinstance(X_train, torch.Tensor):
+        X_train = torch.tensor(X_train, dtype=torch.float32)
+    if not isinstance(y_train, torch.Tensor):
+        y_train = torch.tensor(y_train, dtype=torch.float32)
+    
+    X_train = X_train.to(device)
+    y_train = y_train.to(device)
+    
+    # Create dataset
+    dataset = TensorDataset(X_train, y_train)
+    
+    # Generate model instances from config
+    model_list = models.load_model_instances(config)
+    
+    # Generate experiment name
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    experiment_name = f"{config.model.name}_{timestamp}"
+    
+    # Run grid search with default optimizers and loss functions
+    grid_search_legacy(
+        dataset=dataset,
+        model_list=model_list,
+        optim_class_list=[torch.optim.Adam],
+        loss_funct_list=[torch.nn.L1Loss()],
+        lr_list=[0.001],
+        k_fold=k_folds,
+        num_epochs=100,
+        early_stopping_patience=early_stopping_patience,
+        experiment_name=experiment_name
+    )
+    
+    return experiment_name
+
+
+def grid_search_legacy(dataset: TensorDataset,
+                model_list: Iterable | torch.nn.Module,
+                optim_class_list: Iterable = None,
+                loss_funct_list: Iterable | Callable = None,
+                lr_list: list[float] = None,
+                k_fold: int = 5,
+                num_epochs: int = 100,
+                early_stopping_patience: int = 10,
+                experiment_name: str = None):
+    """
+    Grid search over models, optimizers, loss functions (legacy API).
+    Saves all results to CSV and tracks best models.
+    Includes early stopping and live preview.
+    """
 if __name__ == '__main__':
     # Load data
     dataset = data.data_filtration(data.load_data())
@@ -635,14 +880,11 @@ if __name__ == '__main__':
     # Load all models from grid search configs
     model_list = models.get_all_models()
 
-    # Filter out TabNet for now
-    model_list = [m for m in model_list if not isinstance(m, TabNetRegressor)]
-
     print(f"Total models to train: {len(model_list)}")
 
     # Run grid search with cross validation
     # Includes: early stopping, live preview, regression metrics
-    results = grid_search(
+    results = grid_search_legacy(
         dataset=dataset,
         model_list=model_list,
         optim_class_list=[torch.optim.Adam],

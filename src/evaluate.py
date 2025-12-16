@@ -87,11 +87,42 @@ def compute_regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     }
 
 
-def evaluate_model(model: torch.nn.Module, dataloader: DataLoader, device: str = None) -> dict:
+def evaluate_model(model, dataloader: DataLoader = None, device: str = None, X_data: np.ndarray = None, y_data: np.ndarray = None) -> dict:
+    """
+    Evaluate model on validation data.
     
+    Args:
+        model: PyTorch model or TabNetRegressor
+        dataloader: DataLoader for PyTorch models (optional if X_data/y_data provided)
+        device: Device for PyTorch models
+        X_data: Numpy array for TabNet models
+        y_data: Numpy array for TabNet models (ground truth)
+    
+    Returns:
+        dict with metrics and predictions
+    """
+    from pytorch_tabnet.tab_model import TabNetRegressor
+    
+    # TabNet uses different API
+    if isinstance(model, TabNetRegressor):
+        if X_data is None or y_data is None:
+            raise ValueError("TabNet requires X_data and y_data")
+        
+        y_pred = model.predict(X_data).flatten()
+        y_true = y_data.flatten()
+        
+        metrics = compute_regression_metrics(y_true, y_pred)
+        metrics["y_true"] = y_true
+        metrics["y_pred"] = y_pred
+        return metrics
+    
+    # PyTorch models
     if device is None:
         from utils import get_device
         device = get_device()
+    
+    if dataloader is None:
+        raise ValueError("PyTorch models require dataloader")
     
     model = model.to(device)
     model.eval()
@@ -139,9 +170,28 @@ def load_and_evaluate_model(
     return metrics
 
 
-def evaluate_best_model(experiment_name: str, dataloader: DataLoader) -> dict:
-
+def evaluate_best_model(
+    experiment_name: str, 
+    X_test, 
+    y_test,
+    save_results: bool = False,
+    show_plots: bool = False
+) -> dict:
+    """
+    Evaluate the best model from an experiment.
+    
+    Args:
+        experiment_name: Name of the experiment
+        X_test: Test features (tensor or numpy array)
+        y_test: Test labels (tensor or numpy array)
+        save_results: Save metrics to CSV
+        show_plots: Generate and show evaluation plots
+    
+    Returns:
+        dict with evaluation metrics
+    """
     import models  # Import here to avoid circular imports
+    from pytorch_tabnet.tab_model import TabNetRegressor
     
     # Load metadata
     meta_path = BEST_DIR / f"{experiment_name}_best_metadata.csv"
@@ -150,29 +200,92 @@ def evaluate_best_model(experiment_name: str, dataloader: DataLoader) -> dict:
     
     metadata = pd.read_csv(meta_path).iloc[0]
     model_name = metadata["model_name"]
-    model_path = BEST_DIR / f"{experiment_name}_best_{model_name}_loss{metadata['best_val_loss']:.4f}.pt"
     
-    # Get model class and hyperparameters
-    if model_name == "SimpleMLP":
-        model_class = models.SimpleMLP
-        model_kwargs = {
-            "in_features": 22,  # Default
-            "hidden_features": int(metadata.get("hidden_features", 64)),
-            "activation_layer": str(metadata.get("activation", "relu")).lower(),
-            "dropout": float(metadata.get("dropout", 0.2))
-        }
-    elif model_name == "SimpleTabTransformer":
-        model_class = models.SimpleTabTransformer
-        model_kwargs = {
-            "in_features": 22,
-            "d_model": int(metadata.get("d_model", 64)),
-            "n_heads": int(metadata.get("n_heads", 4)),
-            "num_layers": int(metadata.get("num_layers", 2))
-        }
+    # Convert tensors to numpy for consistency
+    if isinstance(X_test, torch.Tensor):
+        X_test_np = X_test.cpu().numpy()
+        y_test_np = y_test.cpu().numpy().flatten()
     else:
-        raise ValueError(f"Unknown model: {model_name}")
+        X_test_np = X_test
+        y_test_np = y_test.flatten()
     
-    return load_and_evaluate_model(model_class, model_path, dataloader, model_kwargs)
+    # Handle TabNet differently (uses .zip format, not .pt)
+    if model_name == "TabNetRegressor":
+        # Find TabNet model directory
+        model_dir_name = f"{experiment_name}_best_{model_name}_loss{metadata['best_val_loss']:.4f}"
+        model_path = BEST_DIR / model_dir_name
+        
+        # Load TabNet model
+        model = TabNetRegressor()
+        model.load_model(str(model_path) + ".zip")
+        
+        # Evaluate with numpy arrays
+        metrics = evaluate_model(
+            model=model,
+            X_data=X_test_np,
+            y_data=y_test_np
+        )
+    
+    else:
+        # PyTorch models
+        model_path = BEST_DIR / f"{experiment_name}_best_{model_name}_loss{metadata['best_val_loss']:.4f}.pt"
+        
+        # Get model class and hyperparameters
+        if model_name == "SimpleMLP":
+            model_class = models.SimpleMLP
+            model_kwargs = {
+                "in_features": int(metadata.get("in_features", 22)),
+                "hidden_features": int(metadata.get("hidden_features", 64)),
+                "activation_layer": str(metadata.get("activation", "relu")).lower(),
+                "dropout": float(metadata.get("dropout", 0.2))
+            }
+        elif model_name == "SimpleTabTransformer":
+            model_class = models.SimpleTabTransformer
+            model_kwargs = {
+                "in_features": int(metadata.get("in_features", 22)),
+                "d_model": int(metadata.get("d_model", 64)),
+                "n_heads": int(metadata.get("n_heads", 4)),
+                "num_layers": int(metadata.get("num_layers", 2))
+            }
+        else:
+            raise ValueError(f"Unknown model: {model_name}")
+        
+        # Load PyTorch model
+        from utils import get_device
+        device = get_device()
+        
+        model = model_class(**model_kwargs)
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+        
+        # Create dataloader
+        test_dataset = TensorDataset(
+            torch.tensor(X_test_np, dtype=torch.float32),
+            torch.tensor(y_test_np, dtype=torch.float32)
+        )
+        test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+        
+        # Evaluate
+        metrics = evaluate_model(model=model, dataloader=test_dataloader, device=device)
+    
+    # Print metrics
+    print_metrics(metrics, title=f"Best Model Evaluation: {experiment_name}")
+    
+    # Save results
+    if save_results:
+        results_path = RESULTS_DIR / experiment_name / "best_model_eval.csv"
+        save_evaluation_results(metrics, results_path, include_predictions=True)
+    
+    # Generate plots
+    if show_plots:
+        y_true = metrics["y_true"]
+        y_pred = metrics["y_pred"]
+        
+        plot_predictions(y_true, y_pred, title=f"{experiment_name} - Predictions vs Actual")
+        plot_residuals(y_true, y_pred, title=f"{experiment_name} - Residuals")
+        plot_qq(y_true, y_pred, title=f"{experiment_name} - Q-Q Plot")
+        plot_comprehensive_evaluation(y_true, y_pred, title=f"{experiment_name} - Comprehensive Evaluation")
+    
+    return metrics
 
 
 # ============== REPORTING ==============
