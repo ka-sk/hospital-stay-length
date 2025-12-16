@@ -15,7 +15,18 @@ from sklearn.metrics import (
     max_error as sklearn_max_error
 )
 from typing import Union
-import matplotlib.pyplot as plt
+
+# Optional matplotlib and scipy imports for plotting
+try:
+    import matplotlib.pyplot as plt
+    from scipy import stats
+    from scipy.signal import savgol_filter
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
+    plt = None
+    stats = None
+    savgol_filter = None
 
 
 # ============== PATHS ==============
@@ -316,6 +327,182 @@ def plot_error_by_value(
     return fig
 
 
+def plot_residuals(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    save_path: Union[str, Path] = None
+):
+    """
+    Plot residuals vs fitted values to check for homoscedasticity.
+    Ideal pattern: random scatter around zero line.
+    """
+    if not HAS_MATPLOTLIB:
+        print("Warning: matplotlib not installed, skipping plot")
+        return None
+    
+    residuals = y_true - y_pred
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.scatter(y_pred, residuals, alpha=0.5, s=10)
+    ax.axhline(y=0, color='r', linestyle='--', linewidth=2, label='Zero residual')
+    
+    # Add smoothed trend line
+    from scipy.signal import savgol_filter
+    try:
+        # Sort by predicted values for smooth line
+        sorted_idx = np.argsort(y_pred)
+        y_pred_sorted = y_pred[sorted_idx]
+        residuals_sorted = residuals[sorted_idx]
+        
+        # Apply smoothing if enough points
+        if len(y_pred) > 50:
+            window = min(51, len(y_pred) // 10 * 2 + 1)  # Odd number
+            residuals_smooth = savgol_filter(residuals_sorted, window, 3)
+            ax.plot(y_pred_sorted, residuals_smooth, 'g-', linewidth=2, alpha=0.7, label='Trend')
+    except:
+        pass  # Skip if smoothing fails
+    
+    ax.set_xlabel('Fitted Values (Predicted Length of Stay)')
+    ax.set_ylabel('Residuals (Actual - Predicted)')
+    ax.set_title('Residual Plot')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Plot saved: {save_path}")
+    
+    plt.show()
+    return fig
+
+
+def plot_qq(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    save_path: Union[str, Path] = None
+):
+    """
+    Q-Q plot to check if residuals follow normal distribution.
+    Points should fall along the diagonal line for normal distribution.
+    """
+    if not HAS_MATPLOTLIB:
+        print("Warning: matplotlib not installed, skipping plot")
+        return None
+    
+    from scipy import stats
+    
+    residuals = y_true - y_pred
+    
+    fig, ax = plt.subplots(figsize=(8, 8))
+    
+    # Q-Q plot
+    stats.probplot(residuals, dist="norm", plot=ax)
+    
+    ax.set_title('Q-Q Plot (Normal Distribution Check)')
+    ax.grid(True, alpha=0.3)
+    
+    # Add text with normality test
+    _, p_value = stats.shapiro(residuals[:5000] if len(residuals) > 5000 else residuals)
+    textstr = f'Shapiro-Wilk p-value: {p_value:.4f}\n'
+    if p_value < 0.05:
+        textstr += 'Result: Residuals NOT normally distributed'
+    else:
+        textstr += 'Result: Residuals appear normally distributed'
+    
+    ax.text(0.05, 0.95, textstr, transform=ax.transAxes,
+            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Plot saved: {save_path}")
+    
+    plt.show()
+    return fig
+
+
+def plot_comprehensive_evaluation(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    title: str = "Model Evaluation",
+    save_path: Union[str, Path] = None
+):
+    """
+    Create comprehensive evaluation plot with 4 subplots:
+    1. Predictions vs Actual
+    2. Residuals vs Fitted
+    3. Error Distribution
+    4. Q-Q Plot
+    """
+    if not HAS_MATPLOTLIB:
+        print("Warning: matplotlib not installed, skipping plot")
+        return None
+    
+    from scipy import stats
+    
+    residuals = y_true - y_pred
+    
+    fig = plt.figure(figsize=(16, 12))
+    gs = fig.add_gridspec(2, 2, hspace=0.3, wspace=0.3)
+    
+    # 1. Predictions vs Actual
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.scatter(y_true, y_pred, alpha=0.5, s=10)
+    min_val = min(y_true.min(), y_pred.min())
+    max_val = max(y_true.max(), y_pred.max())
+    ax1.plot([min_val, max_val], [min_val, max_val], 'r--', label='Perfect prediction')
+    ax1.set_xlabel('Actual (days)')
+    ax1.set_ylabel('Predicted (days)')
+    ax1.set_title('Predictions vs Actual')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # 2. Residuals vs Fitted
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.scatter(y_pred, residuals, alpha=0.5, s=10)
+    ax2.axhline(y=0, color='r', linestyle='--', linewidth=2)
+    ax2.set_xlabel('Fitted Values')
+    ax2.set_ylabel('Residuals')
+    ax2.set_title('Residual Plot')
+    ax2.grid(True, alpha=0.3)
+    
+    # 3. Error Distribution
+    ax3 = fig.add_subplot(gs[1, 0])
+    ax3.hist(residuals, bins=50, edgecolor='black', alpha=0.7, density=True)
+    ax3.axvline(x=0, color='r', linestyle='--', label='Zero error')
+    ax3.axvline(x=np.mean(residuals), color='g', linestyle='-', label=f'Mean: {np.mean(residuals):.2f}')
+    
+    # Overlay normal distribution
+    mu, sigma = residuals.mean(), residuals.std()
+    x = np.linspace(residuals.min(), residuals.max(), 100)
+    ax3.plot(x, stats.norm.pdf(x, mu, sigma), 'k--', linewidth=2, label='Normal fit')
+    
+    ax3.set_xlabel('Residuals (days)')
+    ax3.set_ylabel('Density')
+    ax3.set_title('Residual Distribution')
+    ax3.legend()
+    ax3.grid(True, alpha=0.3)
+    
+    # 4. Q-Q Plot
+    ax4 = fig.add_subplot(gs[1, 1])
+    stats.probplot(residuals, dist="norm", plot=ax4)
+    ax4.set_title('Q-Q Plot')
+    ax4.grid(True, alpha=0.3)
+    
+    # Overall title
+    fig.suptitle(title, fontsize=16, fontweight='bold')
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Plot saved: {save_path}")
+    
+    plt.show()
+    return fig
+
+
 if __name__ == "__main__":
     import data_loader as data
     import models
@@ -340,7 +527,25 @@ if __name__ == "__main__":
     metrics = evaluate_model(model, test_loader)
     print_metrics(metrics, title="Test Evaluation (untrained model)")
     
-    # Plot if we have predictions
-    if "y_true" in metrics and "y_pred" in metrics:
+    # Plot if we have predictions and matplotlib is available
+    if HAS_MATPLOTLIB and "y_true" in metrics and "y_pred" in metrics:
+        print("\nGenerating plots...")
+        
+        # Individual plots
+        print("1. Predictions vs Actual + Error Distribution")
         plot_predictions(metrics["y_true"], metrics["y_pred"], 
                         title="Untrained Model Predictions")
+        
+        print("2. Residuals Plot")
+        plot_residuals(metrics["y_true"], metrics["y_pred"])
+        
+        print("3. Q-Q Plot")
+        plot_qq(metrics["y_true"], metrics["y_pred"])
+        
+        print("4. Comprehensive Evaluation Plot")
+        plot_comprehensive_evaluation(metrics["y_true"], metrics["y_pred"],
+                                     title="Comprehensive Model Evaluation")
+    elif not HAS_MATPLOTLIB:
+        print("\nMatplotlib not installed. Skipping plots.")
+        print("Install with: pip install matplotlib scipy")
+
