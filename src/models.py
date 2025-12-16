@@ -15,7 +15,7 @@ class SimpleTabTransformer(nn.Module):
         self.d_model = d_model
         self.n_heads = n_heads
         self.num_layers = num_layers
-        
+
         self.embedding = nn.Linear(in_features, d_model)
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, batch_first=True)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
@@ -27,7 +27,7 @@ class SimpleTabTransformer(nn.Module):
         x = self.transformer(x)
         x = x.mean(dim=1)  # pool across sequence dimension
         return self.fc_out(x)
-    
+
     def get_hyperparams(self) -> dict:
         return {
             "in_features": self.in_features,
@@ -50,7 +50,7 @@ class SimpleMLP(nn.Module):
             'relu': nn.ReLU,
             'tanh': nn.Tanh
         }
-        self.linear1 = nn.Linear(in_features=in_features, out_features=hidden_features) 
+        self.linear1 = nn.Linear(in_features=in_features, out_features=hidden_features)
         self.act_layer = activation_map[activation_layer]()
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(hidden_features, 1)
@@ -61,7 +61,7 @@ class SimpleMLP(nn.Module):
         x = self.dropout(x)
         x = self.linear2(x)
         return x
-    
+
     def get_hyperparams(self) -> dict:
         return {
             "in_features": self.in_features,
@@ -71,10 +71,14 @@ class SimpleMLP(nn.Module):
         }
 
 
-def load_model_instances(path: str):
-    config = OmegaConf.load(path)
+def load_model_instances(config_or_path):
+    # Accept either a path (str/Path) or an already-loaded OmegaConf config
+    if isinstance(config_or_path, (str, Path)):
+        config = OmegaConf.load(config_or_path)
+    else:
+        config = config_or_path
     models = []
-    device = get_device() 
+    device = get_device()
 
     in_features = config.model.in_features
 
@@ -92,7 +96,7 @@ def load_model_instances(path: str):
 
     elif config.model.name == "tabnet":
         n_d = config.model.n_d
-        n_a = config.model.n_a 
+        n_a = config.model.n_a
         n_steps = config.model.n_steps
 
         for nd, na, ns in product(n_d, n_a, n_steps):
@@ -109,7 +113,7 @@ def load_model_instances(path: str):
             models.append(model.to(device=device))
 
     else:
-        raise ValueError(f"Unknown model name: {config.model.name} in {path}")
+        raise ValueError(f"Unknown model name: {config.model.name}")
     return models
 
 
