@@ -2,11 +2,11 @@
 #tutaj tylko wczytywanie funkcji strat, optymalizacji, learning rate itp
 from omegaconf import OmegaConf
 from pathlib import Path
-from torch import cuda
 import torch
+from utils import get_device
 
 def load_loss_function(path=''):
-    device = 'cuda' if cuda.is_available() else 'cpu' 
+    device = get_device() 
 
     if path == '':
             path = Path('experiments/configs/loss-functions')

@@ -2,8 +2,8 @@ import kagglehub
 import pandas as pd
 from pathlib import Path
 import torch
-from torch import cuda
 from torch.utils.data import TensorDataset
+from utils import get_device
 
 
 def load_data()-> pd.DataFrame:
@@ -18,7 +18,7 @@ def load_data()-> pd.DataFrame:
 
 
 def data_filtration(dataframe: pd.DataFrame) -> pd.DataFrame:
-    device = 'cuda' if cuda.is_available() else 'cpu' 
+    device = get_device() 
 
     # filter out unnecessary colums 
     dataframe = dataframe.drop(['random_notes', 'noise_col'], axis=1)
@@ -31,7 +31,7 @@ def data_filtration(dataframe: pd.DataFrame) -> pd.DataFrame:
     # nb of rows after filtration
     len2 = dataframe.shape[0]
 
-    print(f"Rows with lacking data: {len1-len2}")
+    print(f"Rows with missing data: {len1-len2}")
 
     # "Male" "Female" into 1 and 0
     mapping_dict = {'Male': 1, 'Female': 0}

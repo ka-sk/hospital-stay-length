@@ -1,6 +1,7 @@
 """
 Training module with grid search and cross validation.
 Saves models, results to CSV, and tracks best models.
+Includes early stopping and live preview of training progress.
 """
 import torch
 import data_loader as data
@@ -19,6 +20,9 @@ from torch.utils.data import Subset
 from collections.abc import Callable
 from pathlib import Path
 
+# Import evaluation functions from evaluate module
+from evaluate import compute_regression_metrics, evaluate_model
+
 
 # ============== PATHS ==============
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +30,195 @@ EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 RESULTS_DIR = EXPERIMENTS_DIR / "results"
 MODELS_DIR = EXPERIMENTS_DIR / "models"
 BEST_DIR = EXPERIMENTS_DIR / "best"
+
+
+# ============== COLORS FOR LIVE PREVIEW ==============
+class Colors:
+    """ANSI color codes for terminal output."""
+    RESET = "\033[0m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    CYAN = "\033[96m"
+    BOLD = "\033[1m"
+    
+    @staticmethod
+    def success(text: str) -> str:
+        return f"{Colors.GREEN}{text}{Colors.RESET}"
+    
+    @staticmethod
+    def warning(text: str) -> str:
+        return f"{Colors.YELLOW}{text}{Colors.RESET}"
+    
+    @staticmethod
+    def error(text: str) -> str:
+        return f"{Colors.RED}{text}{Colors.RESET}"
+    
+    @staticmethod
+    def info(text: str) -> str:
+        return f"{Colors.CYAN}{text}{Colors.RESET}"
+    
+    @staticmethod
+    def bold(text: str) -> str:
+        return f"{Colors.BOLD}{text}{Colors.RESET}"
+
+
+# ============== EARLY STOPPING ==============
+class EarlyStopping:
+    """Early stopping to stop training when validation loss doesn't improve."""
+    
+    def __init__(self, patience: int = 10, min_delta: float = 0.0, restore_best: bool = True):
+        """
+        Args:
+            patience: Number of epochs to wait before stopping
+            min_delta: Minimum change to qualify as improvement
+            restore_best: Whether to restore best model weights
+        """
+        self.patience = patience
+        self.min_delta = min_delta
+        self.restore_best = restore_best
+        self.counter = 0
+        self.best_loss = None
+        self.best_epoch = 0
+        self.best_model_state = None
+        self.should_stop = False
+    
+    def __call__(self, val_loss: float, model: torch.nn.Module, epoch: int) -> bool:
+        """
+        Check if training should stop.
+        Returns True if should stop.
+        """
+        if self.best_loss is None:
+            self.best_loss = val_loss
+            self.best_epoch = epoch
+            self.best_model_state = copy.deepcopy(model.state_dict())
+            return False
+        
+        if val_loss < self.best_loss - self.min_delta:
+            # Improvement
+            self.best_loss = val_loss
+            self.best_epoch = epoch
+            self.best_model_state = copy.deepcopy(model.state_dict())
+            self.counter = 0
+            return False
+        else:
+            # No improvement
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.should_stop = True
+                return True
+            return False
+    
+    def restore(self, model: torch.nn.Module) -> torch.nn.Module:
+        """Restore best model weights."""
+        if self.restore_best and self.best_model_state is not None:
+            model.load_state_dict(self.best_model_state)
+        return model
+
+
+# ============== LIVE PREVIEW ==============
+class LivePreview:
+    """Live preview of training progress with trend indicators."""
+    
+    def __init__(self, experiment_name: str):
+        self.experiment_name = experiment_name
+        self.fold_history = []
+        self.current_best_loss = float('inf')
+        self.trend_window = 3  # Compare with last N folds
+    
+    def update(self, fold_idx: int, grid_search_id: int, model_name: str, 
+               train_loss: float, val_loss: float, metrics: dict, 
+               stopped_early: bool = False, best_epoch: int = None, total_epochs: int = None):
+        """Update and display live preview after each fold."""
+        
+        # Track history
+        self.fold_history.append({
+            "fold": fold_idx,
+            "grid_search_id": grid_search_id,
+            "val_loss": val_loss
+        })
+        
+        # Determine trend
+        trend = self._get_trend(val_loss)
+        
+        # Update best
+        is_new_best = val_loss < self.current_best_loss
+        if is_new_best:
+            self.current_best_loss = val_loss
+        
+        # Display
+        self._display(
+            fold_idx=fold_idx,
+            grid_search_id=grid_search_id,
+            model_name=model_name,
+            train_loss=train_loss,
+            val_loss=val_loss,
+            metrics=metrics,
+            trend=trend,
+            is_new_best=is_new_best,
+            stopped_early=stopped_early,
+            best_epoch=best_epoch,
+            total_epochs=total_epochs
+        )
+    
+    def _get_trend(self, current_loss: float) -> str:
+        """Get trend indicator based on recent history."""
+        if len(self.fold_history) < 2:
+            return "→"  # Neutral
+        
+        recent = [h["val_loss"] for h in self.fold_history[-self.trend_window:]]
+        avg_recent = np.mean(recent[:-1]) if len(recent) > 1 else recent[0]
+        
+        if current_loss < avg_recent * 0.95:
+            return "↓↓"  # Strong improvement
+        elif current_loss < avg_recent:
+            return "↓"   # Improvement
+        elif current_loss > avg_recent * 1.05:
+            return "↑↑"  # Strong degradation
+        elif current_loss > avg_recent:
+            return "↑"   # Degradation
+        else:
+            return "→"   # Stable
+    
+    def _display(self, fold_idx: int, grid_search_id: int, model_name: str,
+                 train_loss: float, val_loss: float, metrics: dict, trend: str,
+                 is_new_best: bool, stopped_early: bool, best_epoch: int, total_epochs: int):
+        """Display formatted live preview."""
+        
+        # Trend coloring
+        if "↓" in trend:
+            trend_colored = Colors.success(trend)
+        elif "↑" in trend:
+            trend_colored = Colors.error(trend)
+        else:
+            trend_colored = Colors.warning(trend)
+        
+        # Status
+        status_parts = []
+        if is_new_best:
+            status_parts.append(Colors.success(" NEW BEST"))
+        if stopped_early:
+            status_parts.append(Colors.warning(f"Early stop @ epoch {best_epoch}/{total_epochs}"))
+        status = " | ".join(status_parts) if status_parts else ""
+        
+        # Main output
+        print(f"\n    {'─' * 50}")
+        print(f"    {Colors.bold(f'Fold {fold_idx}')} | {model_name} | GS#{grid_search_id}")
+        print(f"    {'─' * 50}")
+        print(f"    Train Loss: {train_loss:.4f}  |  Val Loss: {val_loss:.4f}  {trend_colored}")
+        print(f"    MAE: {metrics['mae']:.4f}  |  RMSE: {metrics['rmse']:.4f}  |  R²: {metrics['r2']:.4f}")
+        if status:
+            print(f"    {status}")
+        print(f"    {'─' * 50}")
+    
+    def summary(self):
+        """Print final summary."""
+        print(f"\n{'═' * 60}")
+        print(Colors.bold(f"  EXPERIMENT SUMMARY: {self.experiment_name}"))
+        print(f"{'═' * 60}")
+        print(f"  Total folds completed: {len(self.fold_history)}")
+        print(f"  Best validation loss: {Colors.success(f'{self.current_best_loss:.4f}')}")
+        print(f"{'═' * 60}\n")
 
 
 def ensure_dirs():
@@ -57,19 +250,33 @@ def train(train_dataloader: DataLoader,
           model: torch.nn.Module,
           loss_funct: Callable,
           optim: torch.optim.Optimizer,
-          num_epochs: int = 100):
+          num_epochs: int = 100,
+          early_stopping: EarlyStopping = None):
     """
-    Train model for specified epochs.
-    Returns: model, train_loss_array, test_loss_array
+    Train model for specified epochs with optional early stopping.
+    Returns: model, train_loss_array, test_loss_array, actual_epochs, stopped_early
     """
-    test_loss_array = np.zeros(num_epochs)
-    train_loss_array = np.zeros(num_epochs)
+    train_loss_list = []
+    test_loss_list = []
+    stopped_early = False
+    actual_epochs = num_epochs
 
     for epoch in range(num_epochs):
-        model, train_loss_array[epoch] = train_step(train_dataloader, model, loss_funct, optim)
-        test_loss_array[epoch] = test_step(test_dataloader, model, loss_funct)
+        model, train_loss = train_step(train_dataloader, model, loss_funct, optim)
+        test_loss = test_step(test_dataloader, model, loss_funct)
+        
+        train_loss_list.append(train_loss)
+        test_loss_list.append(test_loss)
+        
+        # Early stopping check
+        if early_stopping is not None:
+            if early_stopping(test_loss, model, epoch):
+                stopped_early = True
+                actual_epochs = epoch + 1
+                model = early_stopping.restore(model)
+                break
 
-    return model, train_loss_array, test_loss_array
+    return model, np.array(train_loss_list), np.array(test_loss_list), actual_epochs, stopped_early
 
 
 def train_step(dataloader: DataLoader, model: torch.nn.Module, loss_funct: Callable, optim: torch.optim.Optimizer):
@@ -116,23 +323,31 @@ def cross_val(dataset: TensorDataset,
               k_fold: int = 5,
               num_epochs: int = 100,
               model_save_dir: Path = None,
-              grid_search_id: int = 0) -> list[dict]:
+              grid_search_id: int = 0,
+              early_stopping_patience: int = 10,
+              live_preview: LivePreview = None) -> list[dict]:
     """
-    K-Fold cross validation.
+    K-Fold cross validation with early stopping and live preview.
     Returns list of dicts with results for each fold.
     """
     cv = KFold(n_splits=k_fold, shuffle=True, random_state=42)
     fold_results = []
 
     hyperparams = get_model_hyperparams(model)
-
+    model_name = model.__class__.__name__
+    
     for fold_idx, (train_idx, test_idx) in enumerate(cv.split(dataset)):
-        print(f"  Fold {fold_idx + 1}/{k_fold}")
-
         # Deep copy model for each fold
         fold_model = copy.deepcopy(model)
         optimizer = optim_class(fold_model.parameters(), lr=lr)
-
+        
+        # Early stopping for this fold
+        early_stopping = EarlyStopping(
+            patience=early_stopping_patience, 
+            min_delta=0.0001, 
+            restore_best=True
+        )
+        
         # Subsets
         train_subset = Subset(dataset, train_idx)
         val_subset = Subset(dataset, test_idx)
@@ -141,14 +356,15 @@ def cross_val(dataset: TensorDataset,
         train_loader = DataLoader(train_subset, batch_size=64, shuffle=True)
         test_loader = DataLoader(val_subset, batch_size=64, shuffle=False)
 
-        # Train
-        fold_model, train_loss_arr, test_loss_arr = train(
+        # Train with early stopping
+        fold_model, train_loss_arr, test_loss_arr, actual_epochs, stopped_early = train(
             train_dataloader=train_loader,
             test_dataloader=test_loader,
             model=fold_model,
             loss_funct=loss_funct,
             optim=optimizer,
             num_epochs=num_epochs,
+            early_stopping=early_stopping
         )
 
         # Final losses
@@ -156,7 +372,10 @@ def cross_val(dataset: TensorDataset,
         final_val_loss = test_loss_arr[-1]
         best_val_loss = np.min(test_loss_arr)
         best_epoch = int(np.argmin(test_loss_arr)) + 1
-
+        
+        # Compute full metrics on validation set
+        metrics = evaluate_model(fold_model, test_loader)
+        
         # Save model
         if model_save_dir is not None:
             model_filename = f"gs{grid_search_id:04d}_fold{fold_idx + 1}.pt"
@@ -164,7 +383,21 @@ def cross_val(dataset: TensorDataset,
             save_model(fold_model, model_path)
         else:
             model_path = None
-
+        
+        # Live preview
+        if live_preview is not None:
+            live_preview.update(
+                fold_idx=fold_idx + 1,
+                grid_search_id=grid_search_id,
+                model_name=model_name,
+                train_loss=final_train_loss,
+                val_loss=final_val_loss,
+                metrics=metrics,
+                stopped_early=stopped_early,
+                best_epoch=early_stopping.best_epoch + 1 if stopped_early else best_epoch,
+                total_epochs=num_epochs
+            )
+        
         # Record results
         result = {
             "grid_search_id": grid_search_id,
@@ -173,17 +406,23 @@ def cross_val(dataset: TensorDataset,
             "final_val_loss": final_val_loss,
             "best_val_loss": best_val_loss,
             "best_epoch": best_epoch,
+            "actual_epochs": actual_epochs,
             "num_epochs": num_epochs,
+            "stopped_early": stopped_early,
             "optimizer": optim_class.__name__,
             "learning_rate": lr,
             "loss_function": loss_funct.__class__.__name__,
             "model_path": str(model_path) if model_path else None,
+            # Metrics
+            "mae": metrics["mae"],
+            "mse": metrics["mse"],
+            "rmse": metrics["rmse"],
+            "r2": metrics["r2"],
+            "mape": metrics["mape"],
             **hyperparams
         }
         fold_results.append(result)
-
-        print(f"    Train Loss: {final_train_loss:.4f}, Val Loss: {final_val_loss:.4f}, Best Val: {best_val_loss:.4f}")
-
+    
     return fold_results
 
 
@@ -194,10 +433,12 @@ def grid_search(dataset: TensorDataset,
                 lr_list: list[float] = None,
                 k_fold: int = 5,
                 num_epochs: int = 100,
+                early_stopping_patience: int = 10,
                 experiment_name: str = None):
     """
     Grid search over models, optimizers, loss functions.
     Saves all results to CSV and tracks best models.
+    Includes early stopping and live preview.
     """
     ensure_dirs()
 
@@ -232,29 +473,38 @@ def grid_search(dataset: TensorDataset,
 
     # Model save directory for this experiment
     experiment_model_dir = MODELS_DIR / experiment_name
-
+    
+    # Initialize live preview
+    live_preview = LivePreview(experiment_name)
+    
     # Collect all results
     all_results = []
     grid_search_id = 0
     total_combinations = len(model_list) * len(optim_class_list) * len(loss_funct_list) * len(lr_list)
-
-    print(f"Starting Grid Search: {total_combinations} combinations")
-    print(f"Models: {len(model_list)}, Optimizers: {len(optim_class_list)}, Loss Functions: {len(loss_funct_list)}, LRs: {len(lr_list)}")
-    print("=" * 60)
-
+    
+    print(f"\n{Colors.bold('═' * 60)}")
+    print(Colors.bold(f"  GRID SEARCH: {experiment_name}"))
+    print(f"{Colors.bold('═' * 60)}")
+    print(f"  Total combinations: {total_combinations}")
+    print(f"  Models: {len(model_list)}, Optimizers: {len(optim_class_list)}")
+    print(f"  Loss Functions: {len(loss_funct_list)}, Learning Rates: {len(lr_list)}")
+    print(f"  K-Folds: {k_fold}, Max Epochs: {num_epochs}")
+    print(f"  Early Stopping Patience: {early_stopping_patience}")
+    print(f"{Colors.bold('═' * 60)}\n")
+    
     for model in model_list:
         # Skip TabNet for now (requires different training)
         if isinstance(model, TabNetRegressor):
-            print(f"Skipping TabNet (requires special handling)")
+            print(Colors.warning(f"Skipping TabNet (requires special handling)"))
             continue
 
         for optim_class, loss_funct, lr in product(optim_class_list, loss_funct_list, lr_list):
             grid_search_id += 1
             model_name = model.__class__.__name__
-
-            print(f"\n[{grid_search_id}/{total_combinations}] {model_name} | {optim_class.__name__} | {loss_funct.__class__.__name__} | lr={lr}")
-
-            # Run cross validation
+            
+            print(f"\n{Colors.info(f'[{grid_search_id}/{total_combinations}]')} {Colors.bold(model_name)} | {optim_class.__name__} | {loss_funct.__class__.__name__} | lr={lr}")
+            
+            # Run cross validation with early stopping and live preview
             fold_results = cross_val(
                 dataset=dataset,
                 model=model,
@@ -264,7 +514,9 @@ def grid_search(dataset: TensorDataset,
                 k_fold=k_fold,
                 num_epochs=num_epochs,
                 model_save_dir=experiment_model_dir,
-                grid_search_id=grid_search_id
+                grid_search_id=grid_search_id,
+                early_stopping_patience=early_stopping_patience,
+                live_preview=live_preview
             )
 
             all_results.extend(fold_results)
@@ -275,18 +527,18 @@ def grid_search(dataset: TensorDataset,
     # Save all results
     all_results_path = RESULTS_DIR / f"{experiment_name}_all_results.csv"
     results_df.to_csv(all_results_path, index=False)
-    print(f"\nAll results saved: {all_results_path}")
-
+    print(f"\n{Colors.success(f'All results saved: {all_results_path}')}")
+    
     # Compute best models (average across folds)
     if len(results_df) > 0:
         best_models_df = compute_best_models(results_df, experiment_name)
 
         # Copy best model to best folder
         copy_best_model(best_models_df, experiment_name)
-
-    print("\n" + "=" * 60)
-    print("Grid Search Complete!")
-
+    
+    # Final summary
+    live_preview.summary()
+    
     return results_df
 
 
@@ -294,14 +546,12 @@ def compute_best_models(results_df: pd.DataFrame, experiment_name: str) -> pd.Da
     """
     Compute average metrics per grid_search_id and find best models.
     """
-    # Group by grid_search_id and compute mean metrics
-    groupby_cols = ["grid_search_id", "model_name", "optimizer", "learning_rate", "loss_function"]
-
     # Add hyperparameter columns that exist
     hyperparam_cols = ["hidden_features", "dropout", "activation", "d_model", "n_heads", "num_layers"]
-    groupby_cols.extend([c for c in hyperparam_cols if c in results_df.columns])
-
-    agg_df = results_df.groupby("grid_search_id").agg({
+    metric_cols = ["mae", "mse", "rmse", "r2", "mape"]
+    
+    # Build aggregation dict
+    agg_dict = {
         "final_train_loss": "mean",
         "final_val_loss": "mean",
         "best_val_loss": "mean",
@@ -310,9 +560,22 @@ def compute_best_models(results_df: pd.DataFrame, experiment_name: str) -> pd.Da
         "learning_rate": "first",
         "loss_function": "first",
         "num_epochs": "first",
-        **{c: "first" for c in hyperparam_cols if c in results_df.columns}
-    }).reset_index()
-
+        "actual_epochs": "mean",
+        "stopped_early": "sum",  # Count how many folds stopped early
+    }
+    
+    # Add metric columns
+    for col in metric_cols:
+        if col in results_df.columns:
+            agg_dict[col] = "mean"
+    
+    # Add hyperparameter columns
+    for col in hyperparam_cols:
+        if col in results_df.columns:
+            agg_dict[col] = "first"
+    
+    agg_df = results_df.groupby("grid_search_id").agg(agg_dict).reset_index()
+    
     # Sort by best_val_loss
     agg_df = agg_df.sort_values("best_val_loss").reset_index(drop=True)
     agg_df["rank"] = agg_df.index + 1
@@ -327,14 +590,16 @@ def compute_best_models(results_df: pd.DataFrame, experiment_name: str) -> pd.Da
     # Save best models CSV
     best_models_path = RESULTS_DIR / f"{experiment_name}_best_models.csv"
     agg_df.to_csv(best_models_path, index=False)
-    print(f"Best models saved: {best_models_path}")
-
+    print(f"{Colors.success(f'Best models saved: {best_models_path}')}")
+    
     # Print top 5
-    print("\nTop 5 Models:")
-    print("-" * 40)
+    print(f"\n{Colors.bold('Top 5 Models:')}")
+    print("-" * 60)
     for i, row in agg_df.head(5).iterrows():
-        print(f"  #{row['rank']}: {row['model_name']} | Val Loss: {row['best_val_loss']:.4f}")
-
+        r2_str = f"R²: {row['r2']:.4f}" if 'r2' in row else ""
+        mae_str = f"MAE: {row['mae']:.4f}" if 'mae' in row else ""
+        print(f"  #{row['rank']}: {row['model_name']} | Val Loss: {row['best_val_loss']:.4f} | {mae_str} | {r2_str}")
+    
     return agg_df
 
 
@@ -355,12 +620,12 @@ def copy_best_model(best_models_df: pd.DataFrame, experiment_name: str):
         dest_path = BEST_DIR / dest_filename
 
         shutil.copy2(best_model_path, dest_path)
-        print(f"\nBest model copied to: {dest_path}")
-
+        print(f"\n{Colors.success(f'Best model copied to: {dest_path}')}")
+        
         # Also save a metadata file
         meta_path = BEST_DIR / f"{experiment_name}_best_metadata.csv"
         best_row.to_frame().T.to_csv(meta_path, index=False)
-        print(f"Best model metadata: {meta_path}")
+        print(f"{Colors.info(f'Best model metadata: {meta_path}')}")
 
 
 if __name__ == '__main__':
@@ -376,6 +641,7 @@ if __name__ == '__main__':
     print(f"Total models to train: {len(model_list)}")
 
     # Run grid search with cross validation
+    # Includes: early stopping, live preview, regression metrics
     results = grid_search(
         dataset=dataset,
         model_list=model_list,
@@ -383,6 +649,7 @@ if __name__ == '__main__':
         loss_funct_list=[torch.nn.L1Loss(), torch.nn.MSELoss()],
         lr_list=[0.001, 0.0001],
         k_fold=5,
-        num_epochs=50,
+        num_epochs=100,
+        early_stopping_patience=10,  # Stop if no improvement for 10 epochs
         experiment_name="hospital_stay_gridsearch"
     )

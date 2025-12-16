@@ -3,8 +3,8 @@ from itertools import product
 import torch.nn as nn
 from pathlib import Path
 from pytorch_tabnet.tab_model import TabNetRegressor
-from torch import cuda
 import torch
+from utils import get_device
 
 
 # Simple tab transformer
@@ -74,7 +74,7 @@ class SimpleMLP(nn.Module):
 def load_model_instances(path: str):
     config = OmegaConf.load(path)
     models = []
-    device = 'cuda' if cuda.is_available() else 'cpu' 
+    device = get_device() 
 
     in_features = config.model.in_features
 

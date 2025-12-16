@@ -16,8 +16,6 @@ def get_device() -> str:
 
 def model_filepath(model: torch.nn.Module, grid_search_id: int, fold: int, base_dir: Path = None) -> Path:
     """
-    Generate filepath for saving a model.
-    
     Structure: models/{model_name}/gs{id:04d}_fold{fold}.pt
     """
     if base_dir is None:
