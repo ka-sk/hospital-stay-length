@@ -1,0 +1,2 @@
+grid_search_id,final_train_loss,final_val_loss,best_val_loss,model_name,optimizer,learning_rate,loss_function,num_epochs,actual_epochs,stopped_early,mae,mse,rmse,r2,mape,d_model,n_heads,num_layers,rank,model_path,fold
+11,1.308737730713033,1.310389296798145,1.2471873525310966,SimpleTabTransformer,Adam,0.001,L1Loss,100,56.6,5,1.2482463598251343,2.5548409938812258,1.5981686130860873,0.6456825613975525,36.531277,128,2,2,1,/home/xen/personal/hospital-stay-length/experiments/models/tabtransformer_20251217_101214/gs0011_fold5.pt,5

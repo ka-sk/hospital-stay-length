@@ -32,6 +32,92 @@ MODELS_DIR = EXPERIMENTS_DIR / "models"
 BEST_DIR = EXPERIMENTS_DIR / "best"
 
 
+# ============== RESUME FUNCTIONALITY ==============
+import re
+
+def find_latest_experiment(model_name: str) -> Path | None:
+    """
+    Find the latest experiment directory for a given model name.
+    Returns the path to the directory or None if not found.
+    """
+    if not MODELS_DIR.exists():
+        return None
+
+    # Find all directories matching pattern: model_name_YYYYMMDD_HHMMSS
+    pattern = re.compile(rf"^{re.escape(model_name)}_(\d{{8}}_\d{{6}})$")
+    matching_dirs = []
+
+    for d in MODELS_DIR.iterdir():
+        if d.is_dir():
+            match = pattern.match(d.name)
+            if match:
+                matching_dirs.append((d, match.group(1)))
+
+    if not matching_dirs:
+        return None
+
+    # Sort by timestamp (newest first)
+    matching_dirs.sort(key=lambda x: x[1], reverse=True)
+    return matching_dirs[0][0]
+
+
+def get_completed_checkpoints(experiment_dir: Path) -> dict[int, set[int]]:
+    """
+    Parse saved model files to determine completed grid_search_ids and folds.
+    Returns dict: {grid_search_id: set of completed fold numbers}
+    """
+    completed = {}
+
+    if not experiment_dir.exists():
+        return completed
+
+    # Pattern: gs0001_fold1.pt
+    pattern = re.compile(r"^gs(\d+)_fold(\d+)\.pt$")
+
+    for f in experiment_dir.iterdir():
+        if f.is_file():
+            match = pattern.match(f.name)
+            if match:
+                gs_id = int(match.group(1))
+                fold = int(match.group(2))
+                if gs_id not in completed:
+                    completed[gs_id] = set()
+                completed[gs_id].add(fold)
+
+    return completed
+
+
+def get_resume_point(experiment_dir: Path, k_folds: int) -> tuple[int, int]:
+    """
+    Determine the resume point (grid_search_id, start_fold) based on completed checkpoints.
+
+    Returns:
+        (resume_gs_id, resume_fold): where to resume training
+        - resume_gs_id: grid search id to resume from (1-based)
+        - resume_fold: fold to resume from (1-based, 1 means start fresh for this gs_id)
+    """
+    completed = get_completed_checkpoints(experiment_dir)
+
+    if not completed:
+        return (1, 1)  # Start from beginning
+
+    # Find the highest gs_id
+    max_gs_id = max(completed.keys())
+    completed_folds = completed[max_gs_id]
+
+    # Check if all folds are completed for max_gs_id
+    if len(completed_folds) >= k_folds:
+        # All folds done, resume from next gs_id
+        return (max_gs_id + 1, 1)
+    else:
+        # Find the next fold to run
+        for fold in range(1, k_folds + 1):
+            if fold not in completed_folds:
+                return (max_gs_id, fold)
+        # Shouldn't reach here, but just in case
+        return (max_gs_id + 1, 1)
+
+
 # ============== COLORS FOR LIVE PREVIEW ==============
 class Colors:
     """ANSI color codes for terminal output."""
@@ -272,8 +358,8 @@ def train_tabnet(X_train: np.ndarray,
 
     # Extract training history
     history = model.history
-    train_loss = np.array([h['loss'] for h in history])
-    val_loss = np.array([h['val_0_mae'] for h in history])  # Using MAE as validation metric
+    train_loss = np.array(history['loss'])
+    val_loss = np.array(history['val_0_mae'])  # Using MAE as validation metric
 
     actual_epochs = len(train_loss)
     stopped_early = actual_epochs < num_epochs
@@ -359,10 +445,14 @@ def cross_val_tabnet(X_data: np.ndarray,
                      model_save_dir: Path = None,
                      grid_search_id: int = 0,
                      early_stopping_patience: int = 10,
-                     live_preview: LivePreview = None) -> list[dict]:
+                     live_preview: LivePreview = None,
+                     start_fold: int = 1) -> list[dict]:
     """
     K-Fold cross validation for TabNet models.
     Returns list of dicts with results for each fold.
+
+    Args:
+        start_fold: Fold to start from (1-based). Useful for resuming.
     """
     cv = KFold(n_splits=k_fold, shuffle=True, random_state=42)
     fold_results = []
@@ -376,6 +466,10 @@ def cross_val_tabnet(X_data: np.ndarray,
     }
 
     for fold_idx, (train_idx, val_idx) in enumerate(cv.split(X_data)):
+        # Skip folds before start_fold (fold_idx is 0-based, start_fold is 1-based)
+        if fold_idx + 1 < start_fold:
+            continue
+
         # TabNet needs fresh instance for each fold
         fold_model = TabNetRegressor(
             n_d=model.n_d,
@@ -473,10 +567,14 @@ def cross_val(dataset: TensorDataset,
               model_save_dir: Path = None,
               grid_search_id: int = 0,
               early_stopping_patience: int = 10,
-              live_preview: LivePreview = None) -> list[dict]:
+              live_preview: LivePreview = None,
+              start_fold: int = 1) -> list[dict]:
     """
     K-Fold cross validation with early stopping and live preview.
     Returns list of dicts with results for each fold.
+
+    Args:
+        start_fold: Fold to start from (1-based). Useful for resuming.
     """
     cv = KFold(n_splits=k_fold, shuffle=True, random_state=42)
     fold_results = []
@@ -485,6 +583,10 @@ def cross_val(dataset: TensorDataset,
     model_name = model.__class__.__name__
 
     for fold_idx, (train_idx, test_idx) in enumerate(cv.split(dataset)):
+        # Skip folds before start_fold (fold_idx is 0-based, start_fold is 1-based)
+        if fold_idx + 1 < start_fold:
+            continue
+
         # Deep copy model for each fold
         fold_model = copy.deepcopy(model)
         optimizer = optim_class(fold_model.parameters(), lr=lr)
@@ -582,11 +684,17 @@ def grid_search_legacy(dataset: TensorDataset,
                 k_fold: int = 5,
                 num_epochs: int = 100,
                 early_stopping_patience: int = 10,
-                experiment_name: str = None):
+                experiment_name: str = None,
+                resume_gs_id: int = 1,
+                resume_fold: int = 1):
     """
     Grid search over models, optimizers, loss functions.
     Saves all results to CSV and tracks best models.
     Includes early stopping and live preview.
+
+    Args:
+        resume_gs_id: Grid search ID to resume from (1-based)
+        resume_fold: Fold to resume from within the resume_gs_id (1-based)
     """
     ensure_dirs()
 
@@ -630,6 +738,10 @@ def grid_search_legacy(dataset: TensorDataset,
     grid_search_id = 0
     total_combinations = len(model_list) * len(optim_class_list) * len(loss_funct_list) * len(lr_list)
 
+    # Calculate how many configurations/folds were skipped
+    skipped_configs = resume_gs_id - 1
+    skipped_folds_in_current = resume_fold - 1 if resume_gs_id <= total_combinations else 0
+
     print(f"\n{Colors.bold('═' * 60)}")
     print(Colors.bold(f"  GRID SEARCH: {experiment_name}"))
     print(f"{Colors.bold('═' * 60)}")
@@ -638,12 +750,23 @@ def grid_search_legacy(dataset: TensorDataset,
     print(f"  Loss Functions: {len(loss_funct_list)}, Learning Rates: {len(lr_list)}")
     print(f"  K-Folds: {k_fold}, Max Epochs: {num_epochs}")
     print(f"  Early Stopping Patience: {early_stopping_patience}")
+    if resume_gs_id > 1 or resume_fold > 1:
+        print(f"  {Colors.warning(f'Resuming from: GS#{resume_gs_id}, Fold {resume_fold}')}")
+        print(f"  {Colors.warning(f'Skipping: {skipped_configs} complete config(s), {skipped_folds_in_current} fold(s)')}")
     print(f"{Colors.bold('═' * 60)}\n")
 
     for model in model_list:
         # TabNet requires special handling (different API)
         if isinstance(model, TabNetRegressor):
             grid_search_id += 1
+
+            # Skip if before resume point
+            if grid_search_id < resume_gs_id:
+                continue
+
+            # Determine start fold for this configuration
+            start_fold = resume_fold if grid_search_id == resume_gs_id else 1
+
             model_name = model.__class__.__name__
 
             print(f"\n{Colors.info(f'[{grid_search_id}/{total_combinations}]')} {Colors.bold(model_name)} | TabNet Native Training")
@@ -662,13 +785,22 @@ def grid_search_legacy(dataset: TensorDataset,
                 model_save_dir=experiment_model_dir,
                 grid_search_id=grid_search_id,
                 early_stopping_patience=early_stopping_patience,
-                live_preview=live_preview
+                live_preview=live_preview,
+                start_fold=start_fold
             )
             all_results.extend(fold_results)
             continue
 
         for optim_class, loss_funct, lr in product(optim_class_list, loss_funct_list, lr_list):
             grid_search_id += 1
+
+            # Skip if before resume point
+            if grid_search_id < resume_gs_id:
+                continue
+
+            # Determine start fold for this configuration
+            start_fold = resume_fold if grid_search_id == resume_gs_id else 1
+
             model_name = model.__class__.__name__
 
             print(f"\n{Colors.info(f'[{grid_search_id}/{total_combinations}]')} {Colors.bold(model_name)} | {optim_class.__name__} | {loss_funct.__class__.__name__} | lr={lr}")
@@ -685,7 +817,8 @@ def grid_search_legacy(dataset: TensorDataset,
                 model_save_dir=experiment_model_dir,
                 grid_search_id=grid_search_id,
                 early_stopping_patience=early_stopping_patience,
-                live_preview=live_preview
+                live_preview=live_preview,
+                start_fold=start_fold
             )
 
             all_results.extend(fold_results)
@@ -693,8 +826,23 @@ def grid_search_legacy(dataset: TensorDataset,
     # Convert to DataFrame
     results_df = pd.DataFrame(all_results)
 
-    # Save all results
+    # Save all results (append to existing if resuming)
     all_results_path = RESULTS_DIR / f"{experiment_name}_all_results.csv"
+
+    if all_results_path.exists() and (resume_gs_id > 1 or resume_fold > 1):
+        # Load existing results and append new ones
+        existing_df = pd.read_csv(all_results_path)
+        # Remove any rows that will be replaced (same gs_id and fold)
+        if len(results_df) > 0:
+            for _, row in results_df.iterrows():
+                mask = ~((existing_df['grid_search_id'] == row['grid_search_id']) &
+                        (existing_df['fold'] == row['fold']))
+                existing_df = existing_df[mask]
+            results_df = pd.concat([existing_df, results_df], ignore_index=True)
+        else:
+            results_df = existing_df
+        results_df = results_df.sort_values(['grid_search_id', 'fold']).reset_index(drop=True)
+
     results_df.to_csv(all_results_path, index=False)
     print(f"\n{Colors.success(f'All results saved: {all_results_path}')}")
 
@@ -805,7 +953,8 @@ def grid_search(config,
                 X_test=None,
                 y_test=None,
                 k_folds: int = 5,
-                early_stopping_patience: int = 10) -> str:
+                early_stopping_patience: int = 10,
+                resume: bool = True) -> str:
     """
     Grid search using config file (new API for main.py).
 
@@ -817,6 +966,7 @@ def grid_search(config,
         y_test: Optional test labels
         k_folds: Number of folds for cross-validation
         early_stopping_patience: Patience for early stopping
+        resume: If True, resume from last checkpoint if available
 
     Returns:
         experiment_name: Name of the experiment
@@ -839,9 +989,34 @@ def grid_search(config,
     # Generate model instances from config
     model_list = models.load_model_instances(config)
 
-    # Generate experiment name
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_name = f"{config.model.name}_{timestamp}"
+    # Check for resume
+    model_name = config.model.name
+    resume_gs_id = 1
+    resume_fold = 1
+    experiment_name = None
+
+    if resume:
+        latest_exp_dir = find_latest_experiment(model_name)
+        if latest_exp_dir is not None:
+            resume_gs_id, resume_fold = get_resume_point(latest_exp_dir, k_folds)
+            total_models = len(model_list)
+
+            # Check if there's anything to resume
+            if resume_gs_id <= total_models or (resume_gs_id <= total_models and resume_fold <= k_folds):
+                experiment_name = latest_exp_dir.name
+                print(f"\n{Colors.info('═' * 60)}")
+                print(Colors.warning(f"  RESUMING from: {experiment_name}"))
+                print(Colors.warning(f"  Starting at: Grid Search #{resume_gs_id}, Fold {resume_fold}"))
+                print(f"{Colors.info('═' * 60)}\n")
+            else:
+                # All done, nothing to resume
+                print(f"\n{Colors.success('All configurations already completed for ' + model_name)}")
+                return latest_exp_dir.name
+
+    # Generate new experiment name if not resuming
+    if experiment_name is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        experiment_name = f"{model_name}_{timestamp}"
 
     # Run grid search with default optimizers and loss functions
     grid_search_legacy(
@@ -853,7 +1028,9 @@ def grid_search(config,
         k_fold=k_folds,
         num_epochs=100,
         early_stopping_patience=early_stopping_patience,
-        experiment_name=experiment_name
+        experiment_name=experiment_name,
+        resume_gs_id=resume_gs_id,
+        resume_fold=resume_fold
     )
 
     return experiment_name

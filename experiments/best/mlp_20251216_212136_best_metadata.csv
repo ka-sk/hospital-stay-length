@@ -1,0 +1,2 @@
+grid_search_id,final_train_loss,final_val_loss,best_val_loss,model_name,optimizer,learning_rate,loss_function,num_epochs,actual_epochs,stopped_early,mae,mse,rmse,r2,mape,hidden_features,dropout,activation,rank,model_path,fold
+7,1.3389007020352492,1.3260596015874078,1.2807683033101698,SimpleMLP,Adam,0.001,L1Loss,100,64.0,5,1.2827611446380616,2.6419939517974855,1.624806316363232,0.633811092376709,36.732838,128,0.2,ReLU,1,/home/xen/personal/hospital-stay-length/experiments/models/mlp_20251216_212136/gs0007_fold5.pt,5
