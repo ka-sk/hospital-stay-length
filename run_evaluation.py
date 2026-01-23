@@ -32,6 +32,7 @@ def main():
         "mlp_20251216_221732",
         "tabtransformer_20251216_213147",
         "tabtransformer_20251217_101214",
+        "tabnet_20251217_103631",
     ]
 
     print(f"\n[2/2] Evaluating {len(experiments)} trained models...")

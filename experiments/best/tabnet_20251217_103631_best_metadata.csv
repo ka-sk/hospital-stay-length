@@ -1,0 +1,2 @@
+grid_search_id,final_train_loss,final_val_loss,best_val_loss,model_name,optimizer,learning_rate,loss_function,num_epochs,actual_epochs,stopped_early,mae,mse,rmse,r2,mape,rank,model_path,fold
+22,2.495732106730365,1.2497077703475952,1.2392980813980103,TabNetRegressor,Adam,0.02,MAE,100,30.6,5,1.2392980813980103,2.418079710006714,1.5547726479180315,0.6648980259895325,35.04739,1,/home/xen/personal/hospital-stay-length/experiments/models/tabnet_20251217_103631/gs0022_fold5,5
