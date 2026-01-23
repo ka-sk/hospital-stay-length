@@ -1,0 +1,21 @@
+\section{Wprowadzenie}
+
+\subsection{Sformułowanie problemu}
+
+Długość pobytu w szpitalu jest kluczowym wskaźnikiem w zarządzaniu służbą zdrowia. Dokładne przewidywanie czasu hospitalizacji pozwala na optymalizację wykorzystania łóżek szpitalnych, lepsze planowanie personelu oraz skuteczniejsze zarządzanie kosztami.
+
+Problem przewidywania długości pobytu stanowi zadanie \textbf{regresji}, w którym na podstawie czynników ryzyka zdrowotnego pacjenta należy oszacować liczbę dni hospitalizacji.
+
+\subsection{Cel projektu}
+
+Celem projektu jest opracowanie i ocena modeli sieci neuronowych przewidujących długość pobytu w szpitalu na podstawie danych Healthcare Risk Factors Dataset. Projekt obejmuje przygotowanie danych, implementację trzech architektur (SimpleMLP, TabNet, TabTransformer), systematyczne przeszukiwanie hiperparametrów oraz wybór najlepszego modelu.
+
+\subsection{Wykorzystane metody}
+
+Zastosowano trzy architektury sieci neuronowych dostosowane do danych tabelarycznych:
+
+\begin{itemize}
+    \item \textbf{SimpleMLP} -- klasyczna architektura fully-connected (baseline)
+    \item \textbf{TabNet} -- architektura z mechanizmem attention i selekcją cech
+    \item \textbf{TabTransformer} -- architektura oparta na mechanizmie Transformer
+\end{itemize}

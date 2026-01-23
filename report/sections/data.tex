@@ -1,0 +1,72 @@
+\section{Dane}
+
+\subsection{Opis zbioru danych}
+
+W projekcie wykorzystano zbiór danych \textit{Healthcare Risk Factors Dataset}, dostępny publicznie na platformie Kaggle \cite{healthcare_dataset}. Zbiór zawiera informacje o pacjentach oraz czynnikach ryzyka zdrowotnego, które mogą wpływać na długość ich pobytu w szpitalu.
+
+Oryginalny zbiór danych zawierał następujące informacje:
+\begin{itemize}
+    \item Dane demograficzne (wiek, płeć)
+    \item Czynniki fizjologiczne (BMI, ciśnienie krwi, poziom cholesterolu)
+    \item Czynniki behawioralne (palenie, aktywność fizyczna)
+    \item Diagnozę medyczną (stan zdrowia, choroby przewlekłe)
+    \item Długość pobytu w szpitalu (zmienna docelowa)
+\end{itemize}
+
+\subsection{Preprocessing danych}
+
+Dane wymagały przeprowadzenia szeregu operacji przygotowawczych w celu uzyskania formatu odpowiedniego dla trenowania sieci neuronowych:
+
+\subsubsection{Usunięcie kolumn szumu}
+
+Zbiór danych zawierał celowo wprowadzone kolumny szumu służące do testowania algorytmów selekcji cech:
+\begin{itemize}
+    \item \texttt{random\_notes} -- losowe notatki tekstowe
+    \item \texttt{noise\_col} -- kolumna z wartościami losowymi
+\end{itemize}
+
+Kolumny te zostały usunięte przed dalszym przetwarzaniem, gdyż nie niosły żadnej informacji predykcyjnej.
+
+\subsubsection{Obsługa brakujących danych}
+
+Zbiór danych zawierał pewną liczbę rekordów z brakującymi wartościami. Ze względu na stosunkowo niewielką liczbę takich przypadków oraz chęć uniknięcia wprowadzania błędów systematycznych przez imputację, zdecydowano się na usunięcie wierszy zawierających wartości \texttt{NaN}. Analiza wykazała, że liczba usuniętych rekordów była minimalna i nie wpływała negatywnie na reprezentatywność zbioru.
+
+\subsubsection{Kodowanie zmiennych kategorycznych}
+
+Zbiór danych zawierał dwie zmienne kategoryczne wymagające numerycznego zakodowania:
+
+\textbf{Płeć (Gender):}
+\begin{itemize}
+    \item \texttt{Male} → 1
+    \item \texttt{Female} → 0
+\end{itemize}
+
+\textbf{Stan medyczny (Medical Condition):}\\
+Zmienna kategoryczna reprezentująca różne stany zdrowia pacjentów została zakodowana przy użyciu metody one-hot encoding. Dla każdego unikalnego stanu medycznego (z wyjątkiem \texttt{Healthy}) utworzono osobną kolumnę binarną:
+
+\begin{itemize}
+    \item Jeśli pacjent ma dany stan medyczny, wartość kolumny = 1
+    \item W przeciwnym wypadku wartość kolumny = 0
+    \item Pacjenci oznaczeni jako \texttt{Healthy} mają wartość 0 we wszystkich kolumnach stanów medycznych
+\end{itemize}
+
+Po zakodowaniu oryginalna kolumna \texttt{Medical Condition} została usunięta.
+
+\subsection{Podział danych}
+
+Dane zostały podzielone na zbiór treningowy i testowy w proporcji:
+\begin{itemize}
+    \item \textbf{Zbiór treningowy}: 80\% danych
+    \item \textbf{Zbiór testowy}: 20\% danych
+\end{itemize}
+
+Podział został wykonany z użyciem \texttt{random\_state=42} w celu zapewnienia reprodukowalności wyników. Zbiór treningowy został wykorzystany do przeprowadzenia walidacji krzyżowej oraz treningu modeli, natomiast zbiór testowy pozostał niewidoczny dla modeli podczas całego procesu optymalizacji i został użyty wyłącznie do końcowej oceny wybranego najlepszego modelu.
+
+\subsection{Statystyki danych}
+
+Finalny zbiór danych:
+\begin{itemize}
+    \item \textbf{Liczba cech}: 22
+    \item \textbf{Zmienna docelowa}: Długość pobytu w dniach
+    \item \textbf{Podział}: 80\% trening, 20\% test
+\end{itemize}

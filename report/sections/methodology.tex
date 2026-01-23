@@ -1,0 +1,48 @@
+\section{Metodyka}
+
+Proces optymalizacji modeli obejmował grid search z 5-fold cross-validation, early stopping oraz ocenę na zbiorze testowym.
+
+\subsection{Grid Search}
+
+Grid Search (przeszukiwanie siatki) to metoda systematycznego przeszukiwania przestrzeni hiperparametrów poprzez wytrenowanie i ocenę modelu dla każdej możliwej kombinacji wartości hiperparametrów ze zdefiniowanej siatki.
+
+\subsubsection{Przestrzeń hiperparametrów}
+
+Dla każdej architektury zdefiniowano specyficzną przestrzeń hiperparametrów:
+
+\begin{itemize}
+    \item \textbf{SimpleMLP}: 3 × 2 × 3 = 18 możliwych konfiguracji
+    \begin{itemize}
+        \item \texttt{hidden\_channels}: [64, 128, 256]
+        \item \texttt{activation\_layer}: ['relu', 'tanh']
+        \item \texttt{dropout}: [0.2, 0.3, 0.4]
+    \end{itemize}
+    
+    \item \textbf{TabNet}: 3 × 3 × 3 = 27 możliwych konfiguracji
+    \begin{itemize}
+        \item \texttt{n\_d}: [8, 32, 64]
+        \item \texttt{n\_a}: [8, 32, 64]
+        \item \texttt{n\_steps}: [3, 5, 7]
+    \end{itemize}
+    
+    \item \textbf{TabTransformer}: 3 × 3 × 3 = 27 możliwych konfiguracji
+    \begin{itemize}
+        \item \texttt{d\_model}: [64, 128, 256]
+        \item \texttt{n\_heads}: [2, 4, 8]
+        \item \texttt{num\_layers}: [1, 2, 3]
+    \end{itemize}
+\end{itemize}
+
+Szczegółowe opisy hiperparametrów znajdują się w sekcji \ref{sec:architectures}.
+
+\subsection{Walidacja krzyżowa i early stopping}
+
+Zastosowano 5-fold cross-validation z early stopping (patience=10 epok, max 100 epok). Każda konfiguracja była trenowana 5 razy z różnymi podziałami danych, a metryki uśredniano.
+
+\subsection{Metryki oceny}
+
+Wykorzystano standardowe metryki regresji: MAE, RMSE, R², MAPE oraz MedAE.
+
+\subsection{Optymalizacja}
+
+Modele trenowano przy użyciu optymalizatora Adam (learning rate: 0.001 dla MLP i TabTransformer, 0.02 dla TabNet) z funkcją straty L1Loss (MAE).

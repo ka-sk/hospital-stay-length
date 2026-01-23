@@ -1,0 +1,101 @@
+\documentclass[12pt,a4paper]{article}
+
+% Pakiety
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+
+% Ustawienia strony
+\geometry{
+    left=2.5cm,
+    right=2.5cm,
+    top=2.5cm,
+    bottom=2.5cm
+}
+
+% Ustawienia odstepow
+\onehalfspacing
+
+% Sciezka do grafik
+\graphicspath{{figures/}{../experiments/results/}}
+
+% Wszystkie float w dokladnym miejscu
+\floatplacement{figure}{H}
+\floatplacement{table}{H}
+
+% Informacje o dokumencie
+\title{%
+    {\Large\textbf{Przewidywanie Dlugosci Pobytu w Szpitalu\\
+    za pomoca Sieci Neuronowych}}\\[0.5cm]
+    {\large Projekt z Sieci Neuronowych i Uczenia Glebokiego}
+}
+
+\author{%
+    [Imie i Nazwisko]\\
+    [Numer indeksu]\\
+    [Wydzial]\\
+    [Uniwersytet]
+}
+
+\date{\today}
+
+% Numeracja sekcji
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+
+\begin{document}
+
+% Title page
+\maketitle
+\thispagestyle{empty}
+
+\newpage
+
+% Spis tresci
+\tableofcontents
+\newpage
+
+% Sekcje
+\input{sections/introduction}
+\newpage
+
+\input{sections/data}
+\newpage
+
+\input{sections/methodology}
+\newpage
+
+\input{sections/architectures}
+\newpage
+
+\input{sections/training}
+\newpage
+
+\input{sections/results}
+\newpage
+
+\input{sections/analysis}
+\newpage
+
+\input{sections/final_analysis}
+\newpage
+
+\input{sections/conclusions}
+\newpage
+
+% Bibliografia
+\bibliographystyle{plain}
+\bibliography{bibliography}
+
+\end{document}

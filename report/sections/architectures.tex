@@ -1,0 +1,22 @@
+\section{Architektury Modeli}
+\label{sec:architectures}
+
+W projekcie zaimplementowano i porównano trzy różne architektury sieci neuronowych, każda z unikalnymi cechami dostosowanymi do pracy z danymi tabelarycznymi.
+
+\subsection{SimpleMLP}
+
+Klasyczna architektura fully-connected: warstwa wejściowa (22 cechy) → warstwa ukryta → dropout → warstwa wyjściowa.
+
+\input{tables/hyperparams_mlp}
+
+\subsection{TabNet}
+
+Specjalizowana architektura wykorzystująca mechanizm attention do sekwencyjnej selekcji cech \cite{arik2019tabnet}. Oferuje interpretowalność poprzez maski attention pokazujące istotność cech.
+
+\input{tables/hyperparams_tabnet}
+
+\subsection{TabTransformer}
+
+Architektura oparta na mechanizmie Transformer \cite{vaswani2017attention}, wykorzystująca self-attention do modelowania zależności między cechami.
+
+\input{tables/hyperparams_tabtransformer}

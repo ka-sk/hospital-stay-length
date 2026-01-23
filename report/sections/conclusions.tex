@@ -1,0 +1,49 @@
+\section{Wnioski}
+
+\subsection{Podsumowanie wyników}
+
+Projekt zrealizował cel przewidywania długości pobytu w szpitalu. Przetestowano 3 architektury (SimpleMLP, TabNet, TabTransformer) z łącznie 62 konfiguracjami. Wszystkie modele osiągnęły R² powyżej 0.64.
+
+Najlepszy model (TabNet): MAE = 1.26 dnia, R² = 0.67.
+
+\subsection{Stosowalność rozwiązania}
+
+Model może wspierać:
+\begin{itemize}
+    \item Planowanie wykorzystania łóżek szpitalnych
+    \item Optymalizację zarządzania personelem
+    \item Analizę kosztów i budżetowanie
+\end{itemize}
+
+Model powinien wspomagać, nie zastępować osąd medyczny.
+
+\subsection{Ograniczenia}
+
+\begin{itemize}
+    \item Ograniczona liczba cech (22)
+    \item Trudności z ekstremalnymi czasami pobytu
+    \item 33\% niewytłumaczonej wariancji
+    \item Brak walidacji na danych z innych szpitali
+\end{itemize}
+
+\subsection{Kierunki przyszłych badań}
+
+\begin{itemize}
+    \item Wzbogacenie danych o komplikacje i procedury medyczne
+    \item Modelowanie niepewności (przedziały ufności)
+    \item Walidacja w rzeczywistym środowisku szpitalnym
+    \item Integracja z systemami HIS
+\end{itemize}
+
+\subsection{Wnioski końcowe}
+
+\begin{enumerate}
+    \item TabNet jest najlepszym modelem (MAE = 1.26 dnia, R² = 0.67)
+    \item Grid search z 5-fold CV okazał się efektywną metodą optymalizacji
+    \item Specjalizowane architektury przewyższają klasyczny MLP o 3-4\%
+    \item Interpretowalność TabNet czyni go wartościowym w kontekście medycznym
+    \item Model jest gotowy do wdrożenia jako narzędzie wspomagające
+\end{enumerate}
+
+Projekt wykazał, że sieci neuronowe mogą skutecznie wspierać planowanie zarządzania zasobami szpitalnymi.
+

@@ -1,0 +1,46 @@
+\section{Końcowa analiza najlepszego modelu}
+
+\textbf{TabNet} został wybrany jako najlepszy model ze względu na:
+
+\begin{itemize}
+    \item Najniższy MAE (1.2640 dni) i RMSE (1.5971 dni)
+    \item Najwyższy R² (0.6739) -- wyjaśnia 67\% wariancji
+    \item Wyjątkową stabilność (std MAE = 0.0006 dni)
+    \item Wbudowaną interpretowalność (feature importance)
+\end{itemize}
+
+\subsection{Mocne strony}
+
+\begin{itemize}
+    \item Najwyższa dokładność predykcyjna
+    \item Minimalna zmienność między foldami CV
+    \item Mechanizm attention umożliwia identyfikację istotnych cech
+    \item Najniższy maksymalny błąd (6.43 dni vs 9.05 dla MLP)
+\end{itemize}
+
+\subsection{Ograniczenia}
+
+\begin{itemize}
+    \item Trudności z ekstremalnymi czasami pobytu (>10 dni)
+    \item 33\% niewytłumaczonej wariancji
+    \item Brak przedziałów ufności dla predykcji
+\end{itemize}
+
+\subsection{Poprawa względem baseline}
+
+\begin{table}[H]
+\centering
+\caption{Poprawa TabNet względem SimpleMLP}
+\begin{tabular}{lrrr}
+\toprule
+Metryka & SimpleMLP & TabNet & Poprawa \\
+\midrule
+MAE & 1.3105 & 1.2640 & -3.55\% \\
+RMSE & 1.6749 & 1.5971 & -4.64\% \\
+R² & 0.6414 & 0.6739 & +5.07\% \\
+Max Error & 9.0501 & 6.4306 & -28.94\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Model jest gotowy do wdrożenia jako narzędzie wspomagające planowanie zarządzania zasobami szpitalnymi.
