@@ -119,8 +119,8 @@ def plot_architecture_comparison_separate(detailed_analyses, output_dir):
 
     # Osobne wykresy dla każdej metryki
     metrics_data = [
-        ('mae', 'Średni Błąd Bezwzględny (MAE)', mae_vals, 'MAE [dni]', None),
-        ('rmse', 'Pierwiastek Błędu Średniokwadratowego (RMSE)', rmse_vals, 'RMSE [dni]', None),
+        ('mae', 'Średni Błąd Bezwzględny (MAE)', mae_vals, 'MAE [dni]', [0, 1.4]),
+        ('rmse', 'Pierwiastek Błędu Średniokwadratowego (RMSE)', rmse_vals, 'RMSE [dni]', [0, 1.8]),
         ('r2', 'Współczynnik Determinacji (R²)', r2_vals, 'R²', [0, 1]),
         ('mape', 'Średni Błąd Procentowy (MAPE)', mape_vals, 'MAPE [%]', None),
     ]
