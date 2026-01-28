@@ -105,10 +105,10 @@
             \textbf{Podział danych:}
             \begin{center}
                 \begin{tikzpicture}[scale=0.6]
-                    \fill[blue!50] (0,0) rectangle (6.4,0.8);
-                    \fill[red!50] (6.4,0) rectangle (8,0.8);
-                    \node[font=\small, white] at (3.2,0.4) {\textbf{Trening: 80\%}};
-                    \node[font=\small, white] at (7.2,0.4) {\textbf{Test: 20\%}};
+                    \fill[blue!50] (0,0) rectangle (6,0.8);
+                    \fill[red!50] (6,0) rectangle (8,0.8);
+                    \node[font=\small, black] at (3,0.4) {\textbf{Trening: 80\%}};
+                    \node[font=\footnotesize, black] at (7,0.4) {\textbf{Test: 20\%}};
                 \end{tikzpicture}
             \end{center}
         \end{column}
@@ -123,18 +123,18 @@
             \textbf{SimpleMLP}
             \vspace{0.3cm}
 
-            \begin{tikzpicture}[scale=0.5]
-                \foreach \y in {0,0.5,1,1.5,2} \fill[blue!60] (0,\y) circle (0.15);
-                \foreach \y in {0.25,0.75,1.25,1.75} \fill[green!60] (1.5,\y) circle (0.15);
-                \fill[red!60] (3,1) circle (0.15);
+            \begin{tikzpicture}[scale=0.6]
+                \foreach \y in {0,0.5,1,1.5,2} \fill[blue!60] (0,\y) circle (0.18);
+                \foreach \y in {0.25,0.75,1.25,1.75} \fill[green!60] (1.5,\y) circle (0.18);
+                \fill[red!60] (3,1) circle (0.18);
 
                 \foreach \x in {0,0.5,1,1.5,2} {
                     \foreach \y in {0.25,0.75,1.25,1.75} {
-                        \draw[gray!50, thin] (0.15,\x) -- (1.35,\y);
+                        \draw[gray!50, thin] (0.18,\x) -- (1.32,\y);
                     }
                 }
                 \foreach \y in {0.25,0.75,1.25,1.75} {
-                    \draw[gray!50, thin] (1.65,\y) -- (2.85,1);
+                    \draw[gray!50, thin] (1.68,\y) -- (2.82,1);
                 }
             \end{tikzpicture}
 
@@ -150,16 +150,16 @@
             \textbf{TabNet}
             \vspace{0.3cm}
 
-            \begin{tikzpicture}[scale=0.5]
-                \fill[blue!60] (0,0) rectangle (2,0.4);
-                \fill[orange!60] (0,0.6) rectangle (2,1);
-                \fill[green!60] (0,1.2) rectangle (2,1.6);
-                \fill[red!60] (0,1.8) rectangle (2,2.2);
+            \begin{tikzpicture}[scale=0.6]
+                \fill[blue!60] (0,0) rectangle (2.8,0.5);
+                \fill[orange!60] (0,0.7) rectangle (2.8,1.2);
+                \fill[green!60] (0,1.4) rectangle (2.8,1.9);
+                \fill[red!60] (0,2.1) rectangle (2.8,2.6);
 
-                \node[font=\tiny] at (1,0.2) {Input};
-                \node[font=\tiny] at (1,0.8) {Attention};
-                \node[font=\tiny] at (1,1.4) {Feature Trans.};
-                \node[font=\tiny] at (1,2) {Output};
+                \node[font=\scriptsize] at (1.4,0.25) {Input};
+                \node[font=\scriptsize] at (1.4,0.95) {Attention};
+                \node[font=\scriptsize] at (1.4,1.65) {Feature Trans.};
+                \node[font=\scriptsize] at (1.4,2.35) {Output};
             \end{tikzpicture}
 
             \scriptsize
@@ -174,16 +174,16 @@
             \textbf{TabTransformer}
             \vspace{0.3cm}
 
-            \begin{tikzpicture}[scale=0.5]
-                \fill[blue!60] (0,0) rectangle (2,0.4);
-                \fill[purple!60] (0,0.6) rectangle (2,1);
-                \fill[purple!60] (0,1.2) rectangle (2,1.6);
-                \fill[red!60] (0,1.8) rectangle (2,2.2);
+            \begin{tikzpicture}[scale=0.6]
+                \fill[blue!60] (0,0) rectangle (2.8,0.5);
+                \fill[purple!60] (0,0.7) rectangle (2.8,1.2);
+                \fill[purple!60] (0,1.4) rectangle (2.8,1.9);
+                \fill[red!60] (0,2.1) rectangle (2.8,2.6);
 
-                \node[font=\tiny] at (1,0.2) {Embeddings};
-                \node[font=\tiny] at (1,0.8) {Self-Attention};
-                \node[font=\tiny] at (1,1.4) {Self-Attention};
-                \node[font=\tiny] at (1,2) {MLP Head};
+                \node[font=\scriptsize] at (1.4,0.25) {Embeddings};
+                \node[font=\scriptsize] at (1.4,0.95) {Self-Attention};
+                \node[font=\scriptsize] at (1.4,1.65) {Self-Attention};
+                \node[font=\scriptsize] at (1.4,2.35) {MLP Head};
             \end{tikzpicture}
 
             \scriptsize
@@ -285,16 +285,30 @@
 \end{frame}
 
 %=============================================================================
-\begin{frame}{Porównanie architektur -- metryki testowe}
+\begin{frame}{Porównanie architektur -- MAE}
     \begin{center}
-        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/architecture_comparison.pdf}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/comparison_mae.pdf}
+    \end{center}
+\end{frame}
+
+%=============================================================================
+\begin{frame}{Porównanie architektur -- RMSE}
+    \begin{center}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/comparison_rmse.pdf}
+    \end{center}
+\end{frame}
+
+%=============================================================================
+\begin{frame}{Porównanie architektur -- R²}
+    \begin{center}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/comparison_r2.pdf}
     \end{center}
 \end{frame}
 
 %=============================================================================
 \begin{frame}{Stabilność modeli w walidacji krzyżowej}
     \begin{center}
-        \includegraphics[width=0.9\textwidth, height=0.82\textheight, keepaspectratio]{figures/cv_stability.pdf}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/cv_stability.pdf}
     \end{center}
 \end{frame}
 
@@ -327,26 +341,44 @@
 \end{frame}
 
 %=============================================================================
-\begin{frame}{Predykcje i reszty -- SimpleMLP}
+\begin{frame}{SimpleMLP -- Predykcje vs Wartości Rzeczywiste}
     \begin{center}
-        \includegraphics[width=0.48\textwidth]{figures/mlp_predictions.pdf}
-        \includegraphics[width=0.48\textwidth]{figures/mlp_residuals.pdf}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/simplemlp_predictions.pdf}
     \end{center}
 \end{frame}
 
 %=============================================================================
-\begin{frame}{Predykcje i reszty -- TabNet (najlepszy)}
+\begin{frame}{SimpleMLP -- Wykres Reszt}
     \begin{center}
-        \includegraphics[width=0.48\textwidth]{figures/tabnet_predictions.pdf}
-        \includegraphics[width=0.48\textwidth]{figures/tabnet_residuals.pdf}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/simplemlp_residuals.pdf}
     \end{center}
 \end{frame}
 
 %=============================================================================
-\begin{frame}{Predykcje i reszty -- TabTransformer}
+\begin{frame}{TabNet -- Predykcje vs Wartości Rzeczywiste}
     \begin{center}
-        \includegraphics[width=0.48\textwidth]{figures/tabtransformer_predictions.pdf}
-        \includegraphics[width=0.48\textwidth]{figures/tabtransformer_residuals.pdf}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/tabnet_predictions.pdf}
+    \end{center}
+\end{frame}
+
+%=============================================================================
+\begin{frame}{TabNet -- Wykres Reszt}
+    \begin{center}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/tabnet_residuals.pdf}
+    \end{center}
+\end{frame}
+
+%=============================================================================
+\begin{frame}{TabTransformer -- Predykcje vs Wartości Rzeczywiste}
+    \begin{center}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/tabtransformer_predictions.pdf}
+    \end{center}
+\end{frame}
+
+%=============================================================================
+\begin{frame}{TabTransformer -- Wykres Reszt}
+    \begin{center}
+        \includegraphics[width=\textwidth, height=0.82\textheight, keepaspectratio]{figures/tabtransformer_residuals.pdf}
     \end{center}
 \end{frame}
 
@@ -432,11 +464,13 @@
             \end{tabular}
 
             \vspace{0.5cm}
-            \textbf{Przyszłe kierunki:}
+            \textbf{Możliwości poprawy:}
             \begin{itemize}
-                \item Więcej cech medycznych
-                \item Przedziały ufności
-                \item Walidacja kliniczna
+                \setlength{\itemsep}{0pt}
+                \setlength{\parskip}{0pt}
+                \item Rozszerzenie zbioru cech (historia choroby, leki)
+                \item Oversampling długich pobytów (>10 dni)
+                \item Ensemble modeli (TabNet + TabTransformer)
             \end{itemize}
         \end{column}
     \end{columns}
